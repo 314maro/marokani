@@ -1,0 +1,47 @@
+name:                marokani
+version:             0.0.0.0
+synopsis:            kani chat library
+-- description:         
+-- license:             
+license-file:        LICENSE
+author:              maro
+-- maintainer:          
+-- copyright:           
+category:            Network
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     
+    Network.MaroKani
+    Network.MaroKani.Bot
+    Language.MaroKani
+  -- other-modules:       
+  -- other-extensions:    
+  ghc-options: -Wall -O2
+  default-extensions:
+    FlexibleContexts,
+    FlexibleInstances,
+    TypeSynonymInstances,
+    OverloadedStrings
+  build-depends:
+    base >=4.4 && <5,
+    vector >=0.10,
+    bytestring >=0.10.0.0,
+    unordered-containers >=0.2.3.0,
+    containers >=0.5.0.0,
+    mtl >=2.0.0.0,
+    http-conduit >=2.0.0,
+    HTTP >=4000.2.0,
+    aeson >=0.6.0.0,
+    stm >=2.4,
+    async >=2.0.0.0,
+    exceptions >=0.3,
+    free >=4.0,
+    parsers >=0.10,
+    trifecta >=1.0,
+    ansi-wl-pprint >=0.6.6,
+    random >=1.0.1.0
+  -- hs-source-dirs:      
+  default-language:    Haskell2010
