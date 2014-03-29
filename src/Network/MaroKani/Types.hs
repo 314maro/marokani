@@ -64,14 +64,16 @@ kaniQuery :: String -> KaniRequest -> String
 kaniQuery url req = url ++ "?" ++ kaniQuery' req
 
 kaniQuery' :: KaniRequest -> String
-kaniQuery' req = normalGet True reqRoomId "roomid"
-  ++ maybeGet False (fmap show . reqMode) "mode"
+kaniQuery' req
+  =  normalGet True reqRoomId "roomid"
+  ++ maybeGet  False (fmap show . reqMode) "mode"
   ++ normalGet False reqName "name"
-  ++ maybeGet False reqId "id"
-  ++ maybeGet False reqMessage "message"
-  ++ maybeGet False (fmap showColor . reqColor) "color"
+  ++ maybeGet  False reqId "id"
+  ++ maybeGet  False reqTrip "trip"
+  ++ maybeGet  False reqMessage "message"
+  ++ maybeGet  False (fmap showColor . reqColor) "color"
   ++ normalGet False showReqUserOption "user_option"
-  ++ maybeGet False (fmap show . reqLogno) "startLogNo"
+  ++ maybeGet  False (fmap show . reqLogno) "startLogNo"
   where
     showColor (r,g,b) = '#' : (showHex r $ showHex g $ showHex b "")
     showBool True = "true"
@@ -92,7 +94,7 @@ defaultRequest name roomId = KaniRequest
   , reqName = name
   , reqId = Nothing
   , reqMessage = Nothing
-  , reqTrip = Just "hage"
+  , reqTrip = Nothing
   , reqPassword = Nothing
   , reqColor = Nothing
   , reqBold = False

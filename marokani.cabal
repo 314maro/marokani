@@ -3,7 +3,7 @@ version:             0.0.0.0
 synopsis:            kani chat library
 -- description:         
 -- license:             
-license-file:        LICENSE
+-- license-file:        LICENSE
 author:              maro
 -- maintainer:          
 -- copyright:           
@@ -13,18 +13,32 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
+  ghc-options:       -Wall -O2
+  hs-source-dirs:    src
+  default-language:  Haskell2010
+
   exposed-modules:     
     Network.MaroKani
     Network.MaroKani.Bot
     Language.MaroKani
-  -- other-modules:       
-  -- other-extensions:    
-  ghc-options: -Wall -O2
+    Language.Calc
+
+  other-modules:
+    Network.MaroKani.Internal
+    Network.MaroKani.Types
+    Language.MaroKani.Eval
+    Language.MaroKani.Parser
+    Language.MaroKani.Prim
+    Language.MaroKani.Types
+
   default-extensions:
     FlexibleContexts,
     FlexibleInstances,
     TypeSynonymInstances,
     OverloadedStrings
+
+  -- other-extensions:    
+
   build-depends:
     base >=4.4 && <5,
     vector >=0.10,
@@ -38,10 +52,20 @@ library
     stm >=2.4,
     async >=2.0.0.0,
     exceptions >=0.3,
-    free >=4.0,
     parsers >=0.10,
     trifecta >=1.0,
     ansi-wl-pprint >=0.6.6,
     random >=1.0.1.0
-  -- hs-source-dirs:      
-  default-language:    Haskell2010
+
+Test-Suite bot
+  type:              exitcode-stdio-1.0
+  main-is:           bot.hs
+  ghc-options:       -Wall -O2
+  default-language:  Haskell2010
+  hs-source-dirs:    example/
+
+  build-depends:
+    base  >=4.4 && <5,
+    marokani,
+    exceptions >=0.3,
+    mtl >=2.0.0.0
