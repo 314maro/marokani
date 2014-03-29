@@ -9,7 +9,6 @@ import Control.Monad.Trans
 import Control.Monad.Catch
 import Control.Applicative
 import Data.List (stripPrefix)
-import Data.Char
 
 -- もっと柔軟に
 data Script
@@ -73,8 +72,9 @@ bot name roomId = do
   runKani config req $ do
     res <- newId
     liftIO $ putStrLn $ resSessionId res
-    soon
-    let loop = do
+    soon_
+    let loop :: Kani ()
+        loop = do
           comet >>= reacts
           loop
     loop
@@ -86,8 +86,9 @@ botId sId name roomId = do
   let req = (defaultRequest name roomId) { reqId = Just sId }
   runKani config req $ do
     liftIO $ putStrLn sId
-    soon
-    let loop = do
+    soon_
+    let loop :: Kani ()
+        loop = do
           comet >>= reacts
           loop
     loop

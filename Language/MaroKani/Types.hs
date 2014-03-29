@@ -37,7 +37,7 @@ instance Show Value where
   show (VArray arr) = '[' : V.ifoldr f "]" arr
     where
       f 0 v s = shows v s
-      f i v s = ',' : shows v s
+      f _ v s = ',' : shows v s
   show (Fun _ _ _) = "<<fun>>"
   show (PrimFun _) = "<<prim-fun>>"
 instance Eq Value where

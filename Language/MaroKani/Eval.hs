@@ -8,23 +8,21 @@ import Control.Monad.Trans
 import Control.Monad.Catch
 import Control.Applicative
 import Control.Concurrent.STM
-import Control.Concurrent.Async
 import qualified Data.Map as M
 import qualified Data.Vector as V
-import Text.PrettyPrint.ANSI.Leijen (plain)
 
 -- 同じ型をたくさん書いていて冗長
 
-apply :: (MonadIO m, MonadCatch m) => Env -> TChan String -> Value -> Value -> m Value
-apply env chan (Fun (Just fenv') name body) x = do
+apply :: (MonadIO m, MonadCatch m) => TChan String -> Value -> Value -> m Value
+apply chan (Fun (Just fenv') name body) x = do
   fenv <- liftIO $ atomically $ newTVar $ M.insert name (Left x) fenv'
   eval fenv chan body
-apply _ _ (Fun Nothing name body) x = throwM $ Default "Fun Nothing"
-apply _ chan (PrimFun f) x = liftIO $ f x chan
-apply _ _ f _ = throwM $ TypeMismatch "fun" "fun"
+apply _ (Fun Nothing _ _) _ = throwM $ Default "Fun Nothing"
+apply chan (PrimFun f) x = liftIO $ f x chan
+apply _ _ _ = throwM $ TypeMismatch "fun" "fun"
 
 evalF :: (MonadIO m, MonadCatch m) => Env -> TChan String -> Expr -> m Value
-evalF env chan (Var name) = do
+evalF env _ (Var name) = do
   result <- liftIO $ atomically $ do
     env' <- readTVar env
     case M.lookup name env' of
@@ -34,15 +32,15 @@ evalF env chan (Var name) = do
   case result of
     Nothing -> throwM $ UnknownName name
     Just val -> return val
-evalF env chan (EValue (Fun Nothing name expr)) = do
+evalF env _ (EValue (Fun Nothing name expr)) = do
   env' <- liftIO $ atomically $ readTVar env
   return $ Fun (Just env') name expr
-evalF env chan (EValue val) = return val
+evalF _ _ (EValue val) = return val
 evalF env chan (EArray exprs) = liftM (VArray . V.fromList) $ mapM (evalF env chan) exprs
 evalF env chan (App e1 e2) = do
   v1 <- evalF env chan e1
   v2 <- evalF env chan e2
-  apply env chan v1 v2
+  apply chan v1 v2
 evalF env chan (Asgn name expr) = do
   val <- evalF env chan expr
   result <- liftIO $ atomically $ do
@@ -74,3 +72,4 @@ eval' env chan exprs = do
   let Success std' = parse std
   eval env chan std'
   eval env chan exprs
+

@@ -44,6 +44,7 @@ value = (either VInt VDouble <$> T.naturalOrDouble)
   <|> (VBool False <$ T.symbol "()")
   <|> (mkFun <$ T.symbol "\\" <*> some (var <|> T.symbol "_") <*> T.braces exprs)
   where
+    mkFun [] es = Fun Nothing "_" es
     mkFun [v] es = Fun Nothing v es
     mkFun (v:vs) es = Fun Nothing v [EValue $ mkFun vs es]
 

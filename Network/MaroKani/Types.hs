@@ -18,6 +18,7 @@ import Network.HTTP.Conduit
 import Data.Aeson
 import Data.Word (Word8)
 import Numeric (showHex)
+import Data.Monoid (mempty)
 
 data TextSize = Small | Normal | Large
 instance Show TextSize where
@@ -75,7 +76,7 @@ kaniQuery' req = normalGet True reqRoomId "roomid"
     showColor (r,g,b) = '#' : (showHex r $ showHex g $ showHex b "")
     showBool True = "true"
     showBool False = "false"
-    showReqUserOption req = normalGet True (showBool . reqBold) "bold"
+    showReqUserOption _ = normalGet True (showBool . reqBold) "bold"
       ++ normalGet False (showBool . reqItalic) "italic"
       ++ normalGet False (showBool . reqStrike) "strike"
       ++ normalGet False (show . reqSize) "size"
@@ -154,6 +155,7 @@ instance FromJSON KaniLog where
     <*> x .: "name"
     <*> x .:? "serv_option"
     <*> x .:? "user_option"
+  parseJSON _ = mempty
 
 data Memdata = Memdata
   { memElapsedLastChatTime :: Integer
