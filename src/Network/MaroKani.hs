@@ -34,6 +34,7 @@ module Network.MaroKani
 import Network.MaroKani.Types
 import qualified Network.MaroKani.Internal as K
 import Control.Monad.Reader
+import Control.Monad.Catch
 import Control.Concurrent.STM
 import Control.Concurrent.Async
 
@@ -42,7 +43,7 @@ type Kani = ReaderT (KaniConfig, TVar KaniRequest) IO
 connection :: (KaniConfig -> KaniRequest -> IO KaniResponse) -> Kani KaniResponse
 connection con = ReaderT $ \(config,reqv) -> do
   req <- atomically $ readTVar reqv
-  res <- con config req
+  res <- catchAll (con config req) (\e -> print e >> return undefined)
   atomically $ modifyTVar reqv (K.updateReq res)
   return res
 
