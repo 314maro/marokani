@@ -48,10 +48,13 @@ value = (either VInt VDouble <$> T.naturalOrDouble)
     mkFun [v] es = Fun Nothing v es
     mkFun (v:vs) es = Fun Nothing v [EValue $ mkFun vs es]
 
+mk2ArgsOper :: String -> Parser (Expr -> Expr -> Expr)
+mk2ArgsOper name = return $ \x y -> Var name `App` x `App` y
+
 oper :: Char -> Parser (Expr -> Expr -> Expr)
 oper c = do
   name <- T.ident opStyle { T._styleStart = T.char c }
-  return $ \a b -> Var name `App` a `App` b
+  mk2ArgsOper name
 
 opers :: String -> Parser (Expr -> Expr -> Expr)
 opers = foldr (<|>) empty . map oper
@@ -59,6 +62,7 @@ opers = foldr (<|>) empty . map oper
 fact :: Parser Expr
 fact = T.try (Var <$> var)
   <|> (EValue <$> value)
+  <|> T.try (T.brackets $ mk2ArgsOper "--->" <*> expr <* T.symbol ",," <*> expr)
   <|> (EArray <$> T.brackets (T.commaSep1 expr))
   <|> T.parens expr
 

@@ -15,9 +15,9 @@ apply :: (MonadIO m, MonadCatch m) => TChan String -> Value -> Value -> m Value
 apply chan (Fun (Just fenv') name body) x = do
   fenv <- liftIO $ atomically $ newTVar $ M.insert name (Left x) fenv'
   eval fenv chan body
-apply _ (Fun Nothing _ _) _ = throwM $ Default "Fun Nothing"
+apply _ (Fun Nothing _ _) _ = throwM $ InternalError "環境が Nothing の関数"
 apply chan (PrimFun f) x = liftIO $ f x chan
-apply _ _ _ = throwM $ TypeMismatch "fun" "fun"
+apply _ f _ = throwM $ TypeMismatch funName (showType f) "apply"
 
 evalF :: (MonadIO m, MonadCatch m) => Env -> TChan String -> Expr -> m Value
 evalF env _ (Var name) = do
@@ -28,7 +28,7 @@ evalF env _ (Var name) = do
       Just (Left val) -> return $ Just val
       Just (Right ref) -> Just <$> readTVar ref
   case result of
-    Nothing -> throwM $ UnknownName name
+    Nothing -> throwM $ UnknownName name "var"
     Just val -> return val
 evalF env _ (EValue (Fun Nothing name expr)) = do
   env' <- liftIO $ atomically $ readTVar env
@@ -48,7 +48,7 @@ evalF env chan (Asgn name expr) = do
       _ -> return False
   if result
     then return val
-    else throwM $ UnknownName name
+    else throwM $ UnknownName name "assign"
 evalF env chan (If cond tru fls) = do
   cond' <- evalF env chan cond
   let tru' = evalF env chan tru

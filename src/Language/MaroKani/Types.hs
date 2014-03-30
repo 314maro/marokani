@@ -5,6 +5,15 @@ module Language.MaroKani.Types
 , Env'
 , Value(..)
 , isTrue
+, showType
+, intName
+, doubleName
+, stringName
+, boolName
+, arrayName
+, funName
+, primFunName
+, typeOr
 , Expr(..)
 , MaroKaniException(..)
 ) where
@@ -49,6 +58,30 @@ instance Eq Value where
 isTrue :: Value -> Bool
 isTrue (VBool False) = False
 isTrue _ = True
+showType :: Value -> String
+showType (VInt _) = intName
+showType (VDouble _) = doubleName
+showType (VString _) = stringName
+showType (VBool _) = boolName
+showType (VArray _) = arrayName
+showType (Fun _ _ _) = funName
+showType (PrimFun _) = primFunName
+intName :: String
+intName = "int"
+doubleName :: String
+doubleName = "double"
+stringName :: String
+stringName = "string"
+boolName :: String
+boolName = "bool"
+arrayName :: String
+arrayName = "array"
+funName :: String
+funName = "fun"
+primFunName :: String
+primFunName = "prim-fun"
+typeOr :: String -> String -> String
+typeOr x y = x ++ " か " ++ y
 
 data Expr
   = Var String
@@ -61,14 +94,18 @@ data Expr
   deriving (Show)
 
 data MaroKaniException
-  = TypeMismatch String String
-  | UnknownName String
+  = TypeMismatch String String String
+  | UnknownName String String
   | ParserError Doc
+  | InternalError String
   | Default String
   deriving (Typeable)
+showPlace :: String -> String
+showPlace s = " 場所: " ++ s
 instance Show MaroKaniException where
-  show (TypeMismatch t1 t2) = "型エラー: " ++ t1 ++ " のはずが " ++ t2
-  show (UnknownName name) = "知らない名前: " ++ name
+  show (TypeMismatch t1 t2 p) = "型エラー: " ++ t1 ++ " のはずが " ++ t2 ++ showPlace p
+  show (UnknownName name p) = "知らない名前: " ++ name ++ showPlace p
   show (ParserError doc) = show $ plain doc
+  show (InternalError s) = "内部のエラー: " ++ s
   show (Default s) = "エラー: " ++ s
 instance Exception MaroKaniException where
