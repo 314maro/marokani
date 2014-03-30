@@ -7,6 +7,7 @@ module Network.MaroKani.Types
 , KaniResponse(..)
 , KaniLog(..)
 , Memdata(..)
+, KaniAnnounce(..)
 , KaniConfig(..)
 , defaultConfig
 , Proxy(..)
@@ -58,33 +59,32 @@ data KaniRequest = KaniRequest
   , reqSize :: TextSize
   , reqLogno :: Maybe Integer
   , reqUnderscore :: Maybe Integer
-  }
+  } deriving (Show)
 
 kaniQuery :: String -> KaniRequest -> String
 kaniQuery url req = url ++ "?" ++ kaniQuery' req
 
 kaniQuery' :: KaniRequest -> String
-kaniQuery' req
-  =  normalGet True reqRoomId "roomid"
-  ++ maybeGet  False (fmap show . reqMode) "mode"
-  ++ normalGet False reqName "name"
-  ++ maybeGet  False reqId "id"
-  ++ maybeGet  False reqTrip "trip"
-  ++ maybeGet  False reqMessage "message"
-  ++ maybeGet  False (fmap showColor . reqColor) "color"
-  ++ normalGet False showReqUserOption "user_option"
-  ++ maybeGet  False (fmap show . reqLogno) "startLogNo"
+kaniQuery' req =  pureGet True reqRoomId "roomid"
+  ++ maybeGet False (fmap show . reqMode) "mode"
+  ++ pureGet  False reqName "name"
+  ++ maybeGet False reqId "id"
+  ++ maybeGet False reqTrip "trip"
+  ++ maybeGet False reqMessage "message"
+  ++ maybeGet False (fmap showColor . reqColor) "color"
+  ++ pureGet  False showReqUserOption "user_option"
+  ++ maybeGet False (fmap show . reqLogno) "startLogNo"
   where
     showColor (r,g,b) = '#' : (showHex r $ showHex g $ showHex b "")
     showBool True = "true"
     showBool False = "false"
-    showReqUserOption _ = normalGet True (showBool . reqBold) "bold"
-      ++ normalGet False (showBool . reqItalic) "italic"
-      ++ normalGet False (showBool . reqStrike) "strike"
-      ++ normalGet False (show . reqSize) "size"
+    showReqUserOption _ = pureGet True (showBool . reqBold) "bold"
+      ++ pureGet  False (showBool . reqItalic) "italic"
+      ++ pureGet  False (showBool . reqStrike) "strike"
+      ++ pureGet  False (show . reqSize) "size"
       ++ maybeGet False reqKanappsIcon "kanappsIcon"
     query b name val = (if b then "" else "&") ++ name ++ "=" ++ val
-    normalGet b f name = query b name . urlEncode $ f req
+    pureGet b f name = query b name . urlEncode $ f req
     maybeGet b f name = maybe "" id $ query b name . urlEncode <$> f req
 
 defaultRequest :: String -> String -> KaniRequest
@@ -106,10 +106,10 @@ defaultRequest name roomId = KaniRequest
   , reqUnderscore = Nothing
   }
 
--- Maybeを増やす？
 data KaniResponse = KaniResponse
-  { resMemberStatusAll :: Integer
-  , resMemberStatusEnter :: Integer
+  { resAnounce :: Maybe [KaniAnnounce]
+  , resMemberStatusAll :: Maybe Integer
+  , resMemberStatusEnter :: Maybe Integer
   , resMemberStatusIncludeAll :: Maybe Bool
   , resMemberStatusMemdata :: Maybe [Memdata]
   , resMydata :: Memdata
@@ -119,21 +119,28 @@ data KaniResponse = KaniResponse
   , resSessionId :: String
   , resStatusCode :: Int
   , resStatusCodeString :: String
-  } deriving Show
+  } deriving (Show)
 
 instance FromJSON KaniResponse where
-  parseJSON (Object x) = KaniResponse 
-    <$> (x .: "memberStatus" >>= \y -> y .: "all")
-    <*> (x .: "memberStatus" >>= \y -> y .: "enter")
-    <*> (x .: "memberStatus" >>= \y -> y .:? "includeAll")
-    <*> (x .: "memberStatus" >>= \y -> y .:? "memdata")
-    <*> (x .: "mydata")
-    <*> (x .: "room" >>= \y -> y .: "roomid")
-    <*> (x .:? "chatlog")
-    <*> (x .: "session" >>= \y -> y .: "alive")
-    <*> (x .: "session" >>= \y -> y .: "id")
-    <*> (x .: "status" >>= \y -> y .: "code")
-    <*> (x .: "status" >>= \y -> y .: "codeString")
+  parseJSON (Object x) = do
+    memberStatus <- x .:? "memberStatus"
+    let Nothing .:: _ = return Nothing
+        Just o .:: name = Just <$> (o .: name)
+    let Nothing .::? _ = return Nothing
+        Just o .::? name = o .:? name
+    KaniResponse
+      <$> (x .:? "announce")
+      <*> (memberStatus .:: "all")
+      <*> (memberStatus .:: "enter")
+      <*> (memberStatus .::? "includeAll")
+      <*> (memberStatus .::? "memdata")
+      <*> (x .: "mydata")
+      <*> (x .: "room" >>= \y -> y .: "roomid")
+      <*> (x .:? "chatlog")
+      <*> (x .: "session" >>= \y -> y .: "alive")
+      <*> (x .: "session" >>= \y -> y .: "id")
+      <*> (x .: "status" >>= \y -> y .: "code")
+      <*> (x .: "status" >>= \y -> y .: "codeString")
   parseJSON _ = empty
 
 data KaniLog = KaniLog
@@ -145,7 +152,7 @@ data KaniLog = KaniLog
   , logName :: String
   , logServOption :: Maybe String
   , logUserOption :: Maybe String
-  } deriving Show
+  } deriving (Show)
 
 instance FromJSON KaniLog where
   parseJSON (Object x) = KaniLog
@@ -167,7 +174,7 @@ data Memdata = Memdata
   , memOpenid :: String
   , memServOption :: String
   , memUserOption :: Maybe String
-  } deriving Show
+  } deriving (Show)
 
 instance FromJSON Memdata where
   parseJSON (Object x) = Memdata
@@ -178,6 +185,21 @@ instance FromJSON Memdata where
     <*> x .: "openid"
     <*> x .: "serv_option"
     <*> x .:? "user_option"
+  parseJSON _ = empty
+
+data KaniAnnounce = KaniAnnounce
+  { annId :: String
+  , annMessage :: String
+  , annTitle :: String
+  , annType :: String
+  } deriving (Show)
+
+instance FromJSON KaniAnnounce where
+  parseJSON (Object x) = KaniAnnounce
+    <$> x .: "id"
+    <*> x .: "message"
+    <*> x .: "title"
+    <*> x .: "type"
   parseJSON _ = empty
 
 data KaniConfig = KaniConfig

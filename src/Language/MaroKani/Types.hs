@@ -27,7 +27,6 @@ data Value
   | VArray (V.Vector Value)
   | Fun (Maybe Env') String [Expr]
   | PrimFun (Value -> TChan String -> IO Value)
-  -- ユーザー定義型ほしい
 instance Show Value where
   show (VInt i) = show i
   show (VDouble d) = show d

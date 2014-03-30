@@ -11,8 +11,6 @@ import Control.Concurrent.STM
 import qualified Data.Map as M
 import qualified Data.Vector as V
 
--- 同じ型をたくさん書いていて冗長
-
 apply :: (MonadIO m, MonadCatch m) => TChan String -> Value -> Value -> m Value
 apply chan (Fun (Just fenv') name body) x = do
   fenv <- liftIO $ atomically $ newTVar $ M.insert name (Left x) fenv'
