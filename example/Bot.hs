@@ -17,7 +17,9 @@ actions =
     let f :: MaroKani.MaroKaniException -> IO String
         f = return . to2byteSpace . show
     s <- liftIO $ catch (MaroKani.run code) f
-    if null s then say "(empty)" else say s
+    let s' = if null s then "(empty)" else s
+    liftIO $ putStrLn s'
+    say s'
   , colonsEnd (not <$> isSelf) ["m","parse"] $ \code -> void $ do
     let f :: MaroKani.MaroKaniException -> IO String
         f = return . to2byteSpace . show
@@ -43,12 +45,10 @@ bot name roomId trip = do
     res <- newId
     liftIO $ putStrLn $ resSessionId res
     soon_
-    let loop :: Kani ()
-        loop = do
+    let loop = do
           comet >>= reacts
           loop
     loop
-    return ()
 
 botId :: String -> String -> String -> String -> IO ()
 botId name roomId trip sId = do
@@ -57,12 +57,10 @@ botId name roomId trip sId = do
   runKani config req $ do
     liftIO $ putStrLn sId
     soon_
-    let loop :: Kani ()
-        loop = do
+    let loop = do
           comet >>= reacts
           loop
     loop
-    return ()
 
 main :: IO ()
 main = do

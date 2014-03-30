@@ -70,6 +70,6 @@ eval env chan exprs = foldM (\_ e -> evalF env chan e) (VBool False) exprs
 eval' :: (MonadIO m, MonadCatch m) => Env -> TChan String -> [Expr] -> m Value
 eval' env chan exprs = do
   let Success std' = parse std
-  eval env chan std'
+  _ <- eval env chan std'
   eval env chan exprs
 

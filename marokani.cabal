@@ -34,7 +34,6 @@ library
   default-extensions:
     FlexibleContexts,
     FlexibleInstances,
-    TypeSynonymInstances,
     OverloadedStrings
 
   -- other-extensions:    
