@@ -32,11 +32,18 @@ idStyle = TS.emptyIdents
 opStyle :: T.IdentifierStyle Parser
 opStyle = TS.emptyOps
   { T._styleLetter = T.oneOf ":!#$%&*+./<=>?@^|-~"
-  , T._styleReserved = HashSet.fromList ["=",":=","/*","*/"] }
+  , T._styleReserved = HashSet.fromList ["=",":=",".","/*","*/"] }
+
+addParens :: String -> String
+addParens s = "(" ++ s ++ ")"
+
+addBrackets :: String -> String
+addBrackets s = "[" ++ s ++ "]"
 
 var :: Parser String
 var = T.ident idStyle
-  <|> T.parens (T.ident opStyle)
+  <|> (addParens <$> T.parens (T.ident opStyle))
+  <|> (addBrackets <$> T.brackets (T.ident opStyle))
 
 value :: Parser Value
 value = (either VInt VDouble <$> T.naturalOrDouble)
@@ -49,7 +56,7 @@ value = (either VInt VDouble <$> T.naturalOrDouble)
     mkFun (v:vs) es = Fun Nothing v [EValue $ mkFun vs es]
 
 mk2ArgsOper :: String -> Parser (Expr -> Expr -> Expr)
-mk2ArgsOper name = return $ \x y -> Var name `App` x `App` y
+mk2ArgsOper name = return $ \x y -> Var (addParens name) `App` x `App` y
 
 oper :: Char -> Parser (Expr -> Expr -> Expr)
 oper c = do
@@ -59,27 +66,37 @@ oper c = do
 opers :: String -> Parser (Expr -> Expr -> Expr)
 opers = foldr (<|>) empty . map oper
 
+unaryOper :: Parser Expr
+unaryOper = do
+  name <- T.ident opStyle
+  e <- expr
+  return $ App (Var $ addBrackets name) e
+
 fact :: Parser Expr
 fact = T.try (Var <$> var)
   <|> (EValue <$> value)
-  <|> T.try (T.brackets $ mk2ArgsOper "--->" <*> expr <* T.symbol ",," <*> expr)
-  <|> (EArray <$> T.brackets (T.commaSep1 expr))
+  <|> T.try (T.brackets $ mk2ArgsOper "(--->)" <*> expr <* T.symbol ",," <*> expr)
+  <|> (T.brackets $ EArray <$> T.commaSep1 expr)
+  <|> (T.braces $ EObject <$> (T.commaSep $ (,) <$> var <* T.symbol ":=" <*> expr))
   <|> T.parens expr
 
+unary :: Parser Expr
+unary = fact <|> unaryOper
+
 app :: Parser Expr
-app = T.chainl1 fact (pure App)
+app = foldl App <$> unary <*> many fact
 
 dotSharp :: Parser Expr
-dotSharp = T.chainr1 app (opers ".#")
+dotSharp = app `T.chainl1` opers ".#"
 
 power :: Parser Expr
-power = T.chainr1 dotSharp (opers "^")
+power = dotSharp `T.chainr1` opers "^"
 
 mulDiv :: Parser Expr
-mulDiv = T.chainl1 power (opers "*/%")
+mulDiv = power `T.chainl1` opers "*/%"
 
 addSub :: Parser Expr
-addSub = T.chainl1 mulDiv (opers "+-:@")
+addSub = mulDiv `T.chainl1` opers "+-:@"
 
 backQuote :: Parser Expr
 backQuote = T.chainl1 addSub $ T.try $ do
@@ -87,20 +104,21 @@ backQuote = T.chainl1 addSub $ T.try $ do
   return $ \a b -> e `App` a `App` b
 
 comp :: Parser Expr
-comp = T.chainl1 backQuote (opers "=!<>~")
+comp = backQuote `T.chainl1` opers "=!<>~"
 
 parseAnd :: Parser Expr
-parseAnd = T.chainl1 comp (opers "&")
+parseAnd = comp `T.chainl1` opers "&"
 
 parseOr :: Parser Expr
-parseOr = T.chainl1 parseAnd (opers "|")
+parseOr = parseAnd `T.chainl1` opers "|"
 
 dollar :: Parser Expr
-dollar = T.chainr1 parseOr (opers "$?")
+dollar = parseOr `T.chainr1` opers "$?"
 
 asgn :: Parser Expr
-asgn = T.try (Decl <$> var <* T.symbol "=" <*> expr)
-  <|> T.try (Asgn <$> var <* T.symbol ":=" <*> expr)
+asgn = T.try (Asgn <$> var <* T.symbol "=" <*> expr)
+  <|> T.try (Decl <$> var <* T.symbol ":=" <*> expr)
+  <|> T.try (ConstDecl <$> var <* T.symbol "::=" <*> expr)
   <|> dollar
 
 parseIf :: Parser Expr

@@ -11,6 +11,7 @@ module Language.MaroKani.Types
 , stringName
 , boolName
 , arrayName
+, objectName
 , funName
 , primFunName
 , typeOr
@@ -34,6 +35,7 @@ data Value
   | VString String
   | VBool Bool
   | VArray (V.Vector Value)
+  | VObject Env
   | Fun (Maybe Env') String [Expr]
   | PrimFun (Value -> TChan String -> IO Value)
 instance Show Value where
@@ -46,6 +48,7 @@ instance Show Value where
     where
       f 0 v s = shows v s
       f _ v s = ',' : shows v s
+  show (VObject _) = "<<object>>"
   show (Fun _ _ _) = "<<fun>>"
   show (PrimFun _) = "<<prim-fun>>"
 instance Eq Value where
@@ -55,6 +58,13 @@ instance Eq Value where
   VBool x == VBool y = x == y
   VArray x == VArray y = x == y
   _ == _ = False
+  Fun _ _ _ /= _ = False
+  _ /= Fun _ _ _ = False
+  PrimFun _ /= _ = False
+  _ /= PrimFun _ = False
+  VObject _ /= _ = False
+  _ /= VObject _ = False
+  x /= y = not $ x == y
 isTrue :: Value -> Bool
 isTrue (VBool False) = False
 isTrue _ = True
@@ -64,6 +74,7 @@ showType (VDouble _) = doubleName
 showType (VString _) = stringName
 showType (VBool _) = boolName
 showType (VArray _) = arrayName
+showType (VObject _) = objectName
 showType (Fun _ _ _) = funName
 showType (PrimFun _) = primFunName
 intName :: String
@@ -76,6 +87,8 @@ boolName :: String
 boolName = "bool"
 arrayName :: String
 arrayName = "array"
+objectName :: String
+objectName = "object"
 funName :: String
 funName = "fun"
 primFunName :: String
@@ -87,10 +100,12 @@ data Expr
   = Var String
   | EValue Value
   | EArray [Expr]
+  | EObject [(String,Expr)]
   | App Expr Expr
   | If Expr Expr (Maybe Expr)
   | Asgn String Expr
   | Decl String Expr
+  | ConstDecl String Expr
   deriving (Show)
 
 data MaroKaniException
