@@ -21,6 +21,7 @@ parseIO code = case parse code of
   Failure doc -> throwM $ ParserError doc
   Success es -> return es
 
+-- tchanやめよう
 run :: String -> IO String
 run code = do
   es <- parseIO code
