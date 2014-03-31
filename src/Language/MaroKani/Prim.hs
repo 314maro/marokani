@@ -57,16 +57,16 @@ primNE _ x y = return $ VBool $ x /= y
 primEQ :: String -> Value -> Value -> IO Value
 primEQ _ x y = return $ VBool $ x == y
 
-primEnumFromTo :: String -> Value -> Value -> IO Value
-primEnumFromTo name x y = calcNum V.enumFromTo V.enumFromTo
-  (VArray . V.map VInt) (VArray . V.map VDouble) x y name
-
 primIndex :: String -> Value -> Value -> IO Value
 primIndex _ (VArray arr) (VInt i) = return $ arr V.! fromIntegral i
 primIndex _ (VString s) (VInt i) = return $ VString $ take 1 $ drop (fromIntegral i) s
 primIndex name (VArray _) i = throwM $ TypeMismatch intName (showType i) name
 primIndex name (VString _) i = throwM $ TypeMismatch intName (showType i) name
 primIndex name a _ = throwM $ TypeMismatch (stringName `typeOr` arrayName) (showType a) name
+
+primEnumFromTo :: String -> Value -> Value -> IO Value
+primEnumFromTo name x y = calcNum V.enumFromTo V.enumFromTo
+  (VArray . V.map VInt) (VArray . V.map VDouble) x y name
 
 primPrint :: Value -> TChan String -> IO Value
 primPrint x chan = do
@@ -82,35 +82,62 @@ primShowFun name f = throwM $ TypeMismatch funName (showType f) name
 
 primShowObj :: String -> Value -> IO Value
 primShowObj _ (VObject env) = do
-  env' <- atomically $ readTVar env
-  list <- M.assocs <$> traverse (either return (atomically . readTVar)) env'
-  let s = intercalate "," $ map (\(name,val) -> name ++ ":=" ++ show val) list
-  return $ VString s
+  let f (Left l) = return $ "::=" ++ show l
+      f (Right r) = (\x -> ":=" ++ show x) <$> atomically (readTVar r)
+  list <- M.assocs <$> traverse f env
+  let s = intercalate "," $ map (\(name,val) -> name ++ val) list
+  return $ VString $ "{" ++ s ++ "}"
 primShowObj name x = throwM $ TypeMismatch objectName (showType x) name
 
 primRandInt :: String -> Value -> IO Value
 primRandInt _ _ = VInt <$> Rand.randomIO
+
+primSin :: String -> Value -> IO Value
+primSin _ (VDouble d) = return $ VDouble $ sin d
+primSin _ (VInt i) = return $ VDouble $ sin $ fromIntegral i
+primSin name x = throwM $ TypeMismatch doubleName (showType x) name
+
+primCos :: String -> Value -> IO Value
+primCos _ (VDouble d) = return $ VDouble $ cos d
+primCos _ (VInt i) = return $ VDouble $ cos $ fromIntegral i
+primCos name x = throwM $ TypeMismatch doubleName (showType x) name
+
+primTan :: String -> Value -> IO Value
+primTan _ (VDouble d) = return $ VDouble $ tan d
+primTan _ (VInt i) = return $ VDouble $ tan $ fromIntegral i
+primTan name x = throwM $ TypeMismatch doubleName (showType x) name
 
 primFloor :: String -> Value -> IO Value
 primFloor _ (VDouble d) = return $ VInt $ floor d
 primFloor _ (VInt i) = return $ VInt i
 primFloor name x = throwM $ TypeMismatch doubleName (showType x) name
 
+primUnaryPlus :: String -> Value -> IO Value
+primUnaryPlus _ (VInt i) = return $ VInt i
+primUnaryPlus _ (VDouble d) = return $ VDouble d
+primUnaryPlus name x = throwM $ TypeMismatch (intName `typeOr` doubleName) (showType x) name
+
 primUnaryMinus :: String -> Value -> IO Value
 primUnaryMinus _ (VInt i) = return $ VInt (- i)
 primUnaryMinus _ (VDouble d) = return $ VDouble (- d)
 primUnaryMinus name x = throwM $ TypeMismatch (intName `typeOr` doubleName) (showType x) name
 
+-- object のチェック (has, hasOnly) させよう
 primsList :: [(String,Value)]
 primsList =
   [ ("true", VBool True)
   , ("false", VBool False)
+  , ("pi", VDouble pi)
   , ("print", PrimFun primPrint)
   , mk1Arg primTostr "tostr"
   , mk1Arg primShowFun "showFun"
   , mk1Arg primShowObj "showObj"
   , mk1Arg primRandInt "randInt"
   , mk1Arg primFloor "floor"
+  , mk1Arg primSin "sin"
+  , mk1Arg primCos "cos"
+  , mk1Arg primTan "tan"
+  , mk1Arg primUnaryPlus "[+]"
   , mk1Arg primUnaryMinus "[-]"
   , mk2Args primAdd "(+)"
   , mk2Args primSub "(-)"
@@ -136,3 +163,7 @@ std :: String
 std = "If ::= \\b x y {if b then x else y};"
    ++ "(<<) ::= \\f g x {f (g x)};"
    ++ "($) ::= \\f x {f x};"
+   ++ "(&&) ::= \\x y {if x then y else x};"
+   ++ "(||) ::= \\x y {if x then x else y};"
+   ++ "[!] ::= \\x {if x then false else true};"
+   ++ "π ::= pi;"

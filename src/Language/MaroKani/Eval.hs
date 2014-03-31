@@ -36,13 +36,15 @@ evalF env _ (EValue (Fun Nothing name expr)) = do
 evalF _ _ (EValue val) = return val
 evalF env chan (EArray exprs) = liftM (VArray . V.fromList) $ mapM (evalF env chan) exprs
 evalF env chan (EObject envList) = do
-  let f (name,e) = do -- この処理まとめよう あと想定と挙動が違う
+  let f (name,True,e) = do
+        v <- evalF env chan e
+        return (name, Left v)
+      f (name,False,e) = do -- この処理まとめよう
         v <- evalF env chan e
         ref <- liftIO $ atomically $ newTVar v
         return (name, Right ref)
   envList' <- mapM f envList
-  object <- liftIO $ atomically $ newTVar $ M.fromList envList'
-  return $ VObject object
+  return $ VObject $ M.fromList envList'
 evalF env chan (App e1 e2) = do
   v1 <- evalF env chan e1
   v2 <- evalF env chan e2
@@ -52,28 +54,50 @@ evalF env chan (If cond tru fls) = do
   let tru' = evalF env chan tru
   let fls' = maybe (return $ VBool False) (evalF env chan) fls
   if isTrue cond' then tru' else fls'
+evalF env chan (ObjectRef obj name) = do
+  obj' <- evalF env chan obj
+  case obj' of
+    VObject objEnv -> do
+      case M.lookup name objEnv of
+        Nothing -> throwM $ UnknownName name "objectRef"
+        Just (Left val) -> return val
+        Just (Right ref) -> liftIO $ atomically $ readTVar ref
+    _ -> throwM $ TypeMismatch objectName (showType obj') "objectRef"
 evalF env chan (Asgn name expr) = do
   val <- evalF env chan expr
   result <- liftIO $ atomically $ do
     env' <- readTVar env
     let var = M.lookup name env'
     case var of
-      Just (Right ref) -> writeTVar ref val >> return var
-      _ -> return var
+      Just (Right ref) -> writeTVar ref val
+      _ -> return ()
+    return var
   case result of
     Just (Right _) -> return val
     Just (Left _) -> throwM $ TypeMismatch "mutable" "const" "assign"
     Nothing -> throwM $ UnknownName name "assign"
-evalF env chan (Decl name expr) = do
+evalF env chan (Decl name True expr) = do
+  val <- evalF env chan expr
+  liftIO $ atomically $ modifyTVar env (M.insert name (Left val))
+  return val
+evalF env chan (Decl name False expr) = do
   val <- evalF env chan expr
   liftIO $ atomically $ do
     ref <- newTVar val
     modifyTVar env (M.insert name (Right ref))
   return val
-evalF env chan (ConstDecl name expr) = do
-  val <- evalF env chan expr
-  liftIO $ atomically $ modifyTVar env (M.insert name (Left val))
-  return val
+evalF env chan (ObjectAsgn obj name e) = do
+  obj' <- evalF env chan obj
+  val <- evalF env chan e
+  case obj' of
+    VObject objEnv -> do
+      case M.lookup name objEnv of
+        Just (Right ref) -> do
+          liftIO $ atomically $ writeTVar ref val
+          return obj'
+        Just (Left _) -> throwM $ TypeMismatch "mutable" "const" "objectAsgn"
+        Nothing -> throwM $ UnknownName name "objectAsgn"
+    _ -> throwM $ TypeMismatch objectName (showType obj') "objectAsgn"
 
 eval :: (MonadIO m, MonadCatch m) => Env -> TChan String -> [Expr] -> m Value
 eval env chan exprs = foldM (\_ e -> evalF env chan e) (VBool False) exprs
@@ -81,5 +105,5 @@ eval env chan exprs = foldM (\_ e -> evalF env chan e) (VBool False) exprs
 eval' :: (MonadIO m, MonadCatch m) => Env -> TChan String -> [Expr] -> m Value
 eval' env chan exprs = do
   let Success std' = parse std
-  _ <- eval env chan std'
+  _ <- catchAll (eval env chan std') (throwM . InternalError . show)
   eval env chan exprs

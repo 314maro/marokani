@@ -30,9 +30,10 @@ idStyle = TS.emptyIdents
   { T._styleReserved = HashSet.fromList ["_","if","then","else"] }
 
 opStyle :: T.IdentifierStyle Parser
-opStyle = TS.emptyOps
-  { T._styleLetter = T.oneOf ":!#$%&*+./<=>?@^|-~"
-  , T._styleReserved = HashSet.fromList ["=",":=",".","/*","*/"] }
+opStyle = (TS.emptyOps :: T.IdentifierStyle Parser)
+  { T._styleStart = T._styleLetter opStyle
+  , T._styleLetter = T.oneOf ":!#$%&*+./<=>?@^|-~"
+  , T._styleReserved = HashSet.fromList ["=",":=","::=",".","/*","*/"] }
 
 addParens :: String -> String
 addParens s = "(" ++ s ++ ")"
@@ -66,28 +67,34 @@ oper c = do
 opers :: String -> Parser (Expr -> Expr -> Expr)
 opers = foldr (<|>) empty . map oper
 
+operName :: String -> Parser ()
+operName s = T.token $ T.string s *> T.notFollowedBy (T.ident opStyle :: Parser String)
+
 unaryOper :: Parser Expr
 unaryOper = do
   name <- T.ident opStyle
   e <- expr
   return $ App (Var $ addBrackets name) e
 
+isDeclConst :: Parser Bool
+isDeclConst = (True <$ operName "::=") <|> (False <$ operName ":=")
+
 fact :: Parser Expr
 fact = T.try (Var <$> var)
   <|> (EValue <$> value)
   <|> T.try (T.brackets $ mk2ArgsOper "(--->)" <*> expr <* T.symbol ",," <*> expr)
   <|> (T.brackets $ EArray <$> T.commaSep1 expr)
-  <|> (T.braces $ EObject <$> (T.commaSep $ (,) <$> var <* T.symbol ":=" <*> expr))
+  <|> (T.braces $ EObject <$> (T.commaSep $ (,,) <$> var <*> isDeclConst <*> expr))
   <|> T.parens expr
 
-unary :: Parser Expr
-unary = fact <|> unaryOper
+objectRef :: Parser Expr
+objectRef = foldl ObjectRef <$> fact <*> many (operName "." *> var)
 
 app :: Parser Expr
-app = foldl App <$> unary <*> many fact
+app = foldl App <$> (objectRef <|> unaryOper) <*> many objectRef
 
 dotSharp :: Parser Expr
-dotSharp = app `T.chainl1` opers ".#"
+dotSharp = app `T.chainr1` opers ".#"
 
 power :: Parser Expr
 power = dotSharp `T.chainr1` opers "^"
@@ -116,9 +123,9 @@ dollar :: Parser Expr
 dollar = parseOr `T.chainr1` opers "$?"
 
 asgn :: Parser Expr
-asgn = T.try (Asgn <$> var <* T.symbol "=" <*> expr)
-  <|> T.try (Decl <$> var <* T.symbol ":=" <*> expr)
-  <|> T.try (ConstDecl <$> var <* T.symbol "::=" <*> expr)
+asgn = T.try (Asgn <$> var <* operName "=" <*> expr)
+  <|> T.try (Decl <$> var <*> isDeclConst <*> expr)
+  <|> T.try (ObjectAsgn <$> fact <* operName "." <*> var <* operName "=" <*> expr)
   <|> dollar
 
 parseIf :: Parser Expr

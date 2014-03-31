@@ -22,6 +22,7 @@ module Language.MaroKani.Types
 import Control.Monad.Catch
 import Control.Concurrent.STM
 import Data.Typeable (Typeable)
+import Data.List (intercalate)
 import qualified Data.Map as M
 import qualified Data.Vector as V
 import Text.PrettyPrint.ANSI.Leijen (Doc, plain)
@@ -35,7 +36,7 @@ data Value
   | VString String
   | VBool Bool
   | VArray (V.Vector Value)
-  | VObject Env
+  | VObject Env'
   | Fun (Maybe Env') String [Expr]
   | PrimFun (Value -> TChan String -> IO Value)
 instance Show Value where
@@ -48,7 +49,7 @@ instance Show Value where
     where
       f 0 v s = shows v s
       f _ v s = ',' : shows v s
-  show (VObject _) = "<<object>>"
+  show (VObject env) = "{" ++ (intercalate "," $ M.keys env) ++ "}"
   show (Fun _ _ _) = "<<fun>>"
   show (PrimFun _) = "<<prim-fun>>"
 instance Eq Value where
@@ -100,12 +101,13 @@ data Expr
   = Var String
   | EValue Value
   | EArray [Expr]
-  | EObject [(String,Expr)]
+  | EObject [(String,Bool,Expr)]
   | App Expr Expr
   | If Expr Expr (Maybe Expr)
+  | ObjectRef Expr String
   | Asgn String Expr
-  | Decl String Expr
-  | ConstDecl String Expr
+  | Decl String Bool Expr
+  | ObjectAsgn Expr String Expr
   deriving (Show)
 
 data MaroKaniException
