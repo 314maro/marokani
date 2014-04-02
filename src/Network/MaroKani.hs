@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
-
 module Network.MaroKani
 ( KaniRequest(..)
 , defaultRequest

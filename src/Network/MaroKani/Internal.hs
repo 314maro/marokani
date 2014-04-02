@@ -54,7 +54,7 @@ comet = kani LogCometMode
 
 delete :: Integer -> KaniConfig -> KaniRequest -> IO KaniResponse
 delete logno config = kani Delete1Mode
-  config { kaniFun = \req -> req { reqLogno = Just logno } }
+  config { kaniFun = \req -> req { reqLogNo = Just logno } }
 
 deleteAll :: KaniConfig -> KaniRequest -> IO KaniResponse
 deleteAll = kani DeleteAllMode
@@ -62,7 +62,7 @@ deleteAll = kani DeleteAllMode
 updateReq :: KaniResponse -> KaniRequest -> KaniRequest
 updateReq res req = req
   { reqId = Just $ resSessionId res
-  , reqLogno = newLogno <|> reqLogno req
+  , reqStartLogNo = newLogno <|> reqStartLogNo req
   }
   where
     safeLast [] = Nothing

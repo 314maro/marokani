@@ -41,7 +41,7 @@ lambdaとカリー化
 
     print (- 42)
 
-[]でくくれば単項演算子
+[]でくくれば単項演算子が関数に (二項演算子での()と同じ)
 
     [$] := \x{print x}; $ 4
 
@@ -57,9 +57,9 @@ if
 
     print ([1,2,3] ! 0)
 
-範囲
+範囲 ([a,,b] = a--->b)
 
-    print [1,,5]
+    print [1,,5]; print (1--->5)
 
 関数などは比較できないから常に偽
 
@@ -67,4 +67,8 @@ if
 
 オブジェクト
 
-    ob := { a := 42, c ::= "hello" }; print ob.c; ob.a = 0; print ob.a
+    ob := { a := 42, c ::= "hello" }; print ob; ob.a = 0; print ob.a
+
+オブジェクトのコピー
+
+    a := { x := 1 }; b := copy a; a.x = 0; print b

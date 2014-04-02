@@ -44,6 +44,7 @@ stripPrefixes prefixes msg = foldM (\s pre -> stripPrefix pre s >>= stripColon) 
     stripColon ('：':str) = Just str
     stripColon _ = Nothing
 
+-- 無視と権限と区別すべき
 colonsEnd :: Condition -> [String] -> (String -> Kani ()) -> Script
 colonsEnd cond prefixes act = do
   b <- cond

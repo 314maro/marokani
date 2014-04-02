@@ -46,11 +46,14 @@ var = T.ident idStyle
   <|> (addParens <$> T.parens (T.ident opStyle))
   <|> (addBrackets <$> T.brackets (T.ident opStyle))
 
+reservedId :: String -> Parser String
+reservedId s = T.token $ T.string s <* T.notFollowedBy (T.ident idStyle :: Parser String)
+
 value :: Parser Value
 value = (either VInt VDouble <$> T.naturalOrDouble)
   <|> (VString <$> T.stringLiteral)
   <|> (VBool False <$ T.symbol "()")
-  <|> (mkFun <$ T.symbol "\\" <*> some (var <|> T.symbol "_") <*> T.braces exprs)
+  <|> (mkFun <$ T.symbol "\\" <*> some (var <|> reservedId "_") <*> T.braces exprs)
   where
     mkFun [] es = Fun Nothing "_" es
     mkFun [v] es = Fun Nothing v es
@@ -82,10 +85,10 @@ isDeclConst = (True <$ operName "::=") <|> (False <$ operName ":=")
 fact :: Parser Expr
 fact = T.try (Var <$> var)
   <|> (EValue <$> value)
-  <|> T.try (T.brackets $ mk2ArgsOper "(--->)" <*> expr <* T.symbol ",," <*> expr)
+  <|> T.try (T.brackets $ mk2ArgsOper "--->" <*> expr <* T.symbol ",," <*> expr)
   <|> (T.brackets $ EArray <$> T.commaSep1 expr)
   <|> (T.braces $ EObject <$> (T.commaSep $ (,,) <$> var <*> isDeclConst <*> expr))
-  <|> T.parens expr
+  <|> (Multi <$> T.parens exprs)
 
 objectRef :: Parser Expr
 objectRef = foldl ObjectRef <$> fact <*> many (operName "." *> var)
@@ -129,9 +132,9 @@ asgn = T.try (Asgn <$> var <* operName "=" <*> expr)
   <|> dollar
 
 parseIf :: Parser Expr
-parseIf = If <$ T.symbol "if" <*> expr
-  <* T.symbol "then" <*> expr
-  <*> optional (T.symbol "else" *> expr)
+parseIf = If <$ reservedId "if" <*> expr
+  <* reservedId "then" <*> expr
+  <*> optional (reservedId "else" *> expr)
 
 expr :: Parser Expr
 expr = parseIf <|> asgn

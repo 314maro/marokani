@@ -14,25 +14,28 @@ actions =
     let s = either to2byteSpace (("res: " ++) . show) $ Calc.run code
     say s
   , colonsEnd (not <$> isSelf) ["m","m"] $ \code -> void $ do
-    let f :: MaroKani.MaroKaniException -> IO String
-        f = return . to2byteSpace . show
-    s <- liftIO $ catch (MaroKani.run code) f
+    s <- liftIO $ catch (MaroKani.run (Just 2) (Just 512) code) tostr
     let s' = if null s then "(empty)" else s
     liftIO $ putStrLn s'
     say s'
   , colonsEnd (not <$> isSelf) ["m","parse"] $ \code -> void $ do
-    let f :: MaroKani.MaroKaniException -> IO String
-        f = return . to2byteSpace . show
-    s <- liftIO $ catch (show <$> MaroKani.parseIO code) f
+    s <- liftIO $ catch (show <$> MaroKani.parseIO code) tostr
     say s
   , colonsSep isOwner ["m","cmd"] "exit" $ void exit
   , colonsSep isOwner ["m","cmd"] "enter" $ void enter
+  , colonsSep isOwner ["m","cmd","delete"] "all" $ void deleteAll
+  , colonsEnd (not <$> isSelf) ["m","cmd","delete"] $ \n -> void $
+    case reads n of
+      [(n',"")] -> delete n'
+      _ -> say "parser error"
   ]
   where
     to2byteSpace (' ':' ':' ':' ':xs) = "　 " ++ to2byteSpace xs
     to2byteSpace (' ':' ':xs) = "　" ++ to2byteSpace xs
     to2byteSpace (x:xs) = x : to2byteSpace xs
     to2byteSpace "" = ""
+    tostr :: MaroKani.MaroKaniException -> IO String
+    tostr = return . to2byteSpace . show
 
 reacts :: KaniResponse -> Kani ()
 reacts = mkReacts actions

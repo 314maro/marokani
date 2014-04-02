@@ -40,7 +40,7 @@ instance Show KaniMode where
   show EnterMode = "enter"
   show ExitMode = "exit"
   show WriteMode = "logWrite"
-  show Delete1Mode = "deleteLogIndivisual"
+  show Delete1Mode = "deleteLogIndividual"
   show DeleteAllMode = "deleteLog"
 
 data KaniRequest = KaniRequest
@@ -57,7 +57,8 @@ data KaniRequest = KaniRequest
   , reqStrike :: Bool
   , reqKanappsIcon :: Maybe String
   , reqSize :: TextSize
-  , reqLogno :: Maybe Integer
+  , reqStartLogNo :: Maybe Integer
+  , reqLogNo :: Maybe Integer
   , reqUnderscore :: Maybe Integer
   } deriving (Show)
 
@@ -73,7 +74,8 @@ kaniQuery' req =  pureGet True reqRoomId "roomid"
   ++ maybeGet False reqMessage "message"
   ++ maybeGet False (fmap showColor . reqColor) "color"
   ++ pureGet  False showReqUserOption "user_option"
-  ++ maybeGet False (fmap show . reqLogno) "startLogNo"
+  ++ maybeGet False (fmap show . reqStartLogNo) "startLogNo"
+  ++ maybeGet False (fmap show . reqLogNo) "logno"
   where
     showColor (r,g,b) = '#' : (showHex r $ showHex g $ showHex b "")
     showBool True = "true"
@@ -102,7 +104,8 @@ defaultRequest name roomId = KaniRequest
   , reqStrike = False
   , reqKanappsIcon = Nothing
   , reqSize = Normal
-  , reqLogno = Nothing
+  , reqStartLogNo = Nothing
+  , reqLogNo = Nothing
   , reqUnderscore = Nothing
   }
 

@@ -3,8 +3,11 @@
 module Language.MaroKani.Types
 ( Env
 , Env'
+, Output
+, appendOutput
 , Value(..)
 , isTrue
+, showIO
 , showType
 , intName
 , doubleName
@@ -19,9 +22,12 @@ module Language.MaroKani.Types
 , MaroKaniException(..)
 ) where
 
+import Control.Monad.Trans
 import Control.Monad.Catch
 import Control.Concurrent.STM
 import Data.Typeable (Typeable)
+import Control.Applicative
+import Data.Traversable (traverse)
 import Data.List (intercalate)
 import qualified Data.Map as M
 import qualified Data.Vector as V
@@ -29,6 +35,11 @@ import Text.PrettyPrint.ANSI.Leijen (Doc, plain)
 
 type Env' = M.Map String (Either Value (TVar Value))
 type Env = TVar Env'
+
+type Output = TVar (String -> String)
+
+appendOutput :: (MonadIO m) => Output -> String -> m ()
+appendOutput o s = liftIO $ atomically $ modifyTVar o (. (s ++))
 
 data Value
   = VInt Integer
@@ -38,7 +49,7 @@ data Value
   | VArray (V.Vector Value)
   | VObject Env'
   | Fun (Maybe Env') String [Expr]
-  | PrimFun (Value -> TChan String -> IO Value)
+  | PrimFun (([Expr] -> IO Value) -> Value -> Output -> IO Value)
 instance Show Value where
   show (VInt i) = show i
   show (VDouble d) = show d
@@ -69,6 +80,14 @@ instance Eq Value where
 isTrue :: Value -> Bool
 isTrue (VBool False) = False
 isTrue _ = True
+showIO :: Value -> IO String
+showIO (VObject env) = do
+  let f (Left l) = return $ "::=" ++ show l
+      f (Right r) = (\x -> ":=" ++ show x) <$> atomically (readTVar r)
+  list <- M.assocs <$> traverse f env
+  let s = intercalate "," $ map (\(name,val) -> name ++ val) list
+  return $ "{" ++ s ++ "}"
+showIO x = return $ show x
 showType :: Value -> String
 showType (VInt _) = intName
 showType (VDouble _) = doubleName
@@ -103,6 +122,7 @@ data Expr
   | EArray [Expr]
   | EObject [(String,Bool,Expr)]
   | App Expr Expr
+  | Multi [Expr]
   | If Expr Expr (Maybe Expr)
   | ObjectRef Expr String
   | Asgn String Expr
@@ -115,6 +135,8 @@ data MaroKaniException
   | UnknownName String String
   | ParserError Doc
   | InternalError String
+  | StringTooLong
+  | TimeOver
   | Default String
   deriving (Typeable)
 showPlace :: String -> String
@@ -124,5 +146,7 @@ instance Show MaroKaniException where
   show (UnknownName name p) = "知らない名前: " ++ name ++ showPlace p
   show (ParserError doc) = show $ plain doc
   show (InternalError s) = "内部のエラー: " ++ s
+  show StringTooLong = "出力長すぎ"
+  show TimeOver = "時間かかりすぎ"
   show (Default s) = "エラー: " ++ s
 instance Exception MaroKaniException where

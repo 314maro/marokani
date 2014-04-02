@@ -1,21 +1,23 @@
 module Language.MaroKani.Prim (newEnv, std) where
 
 import Language.MaroKani.Types
+import Data.Traversable (traverse)
 import Control.Monad.Trans
 import Control.Monad.Catch
 import Control.Applicative
-import Data.Traversable (traverse)
-import Data.List (intercalate)
 import Control.Concurrent.STM
 import qualified Data.Map as M
 import qualified Data.Vector as V
 import qualified System.Random as Rand
 
 mk1Arg :: (String -> Value -> IO Value) -> String -> (String,Value)
-mk1Arg f name = (name, PrimFun $ \v _ -> f name v)
+mk1Arg f name = (name, PrimFun $ \_ v _ -> f name v)
 
 mk2Args :: (String -> Value -> Value -> IO Value) -> String -> (String,Value)
-mk2Args f name = (name, PrimFun $ \x _ -> return $ PrimFun $ \y _ -> f name x y)
+mk2Args f name = (name, PrimFun $ \_ x _ -> return $ PrimFun $ \_ y _ -> f name x y)
+
+mk2Args' :: (String -> ([Expr] -> IO Value) -> Value -> Value -> IO Value) -> String -> (String,Value)
+mk2Args' f name = (name, PrimFun $ \_ x _ -> return $ PrimFun $ \ev y _ -> f name ev x y)
 
 calcNum :: (Integer -> Integer -> ti) -> (Double -> Double -> td)
   -> (ti -> a) -> (td -> a) -> Value -> Value -> String -> IO a
@@ -68,29 +70,38 @@ primEnumFromTo :: String -> Value -> Value -> IO Value
 primEnumFromTo name x y = calcNum V.enumFromTo V.enumFromTo
   (VArray . V.map VInt) (VArray . V.map VDouble) x y name
 
-primPrint :: Value -> TChan String -> IO Value
-primPrint x chan = do
-  atomically $ writeTChan chan (show x)
-  return x    
+primHas :: String -> Value -> Value -> IO Value
+primHas _ (VObject obj) (VString name) = return $ VBool $ M.member name obj
+primHas name (VObject _) y = throwM $ TypeMismatch stringName (showType y) name
+primHas name x _ = throwM $ TypeMismatch objectName (showType x) name
+
+primMap :: String -> ([Expr] -> IO Value) -> Value -> Value -> IO Value
+primMap _ ev f (VArray arr) = VArray <$> traverse (\v -> ev [App (EValue f) (EValue v)]) arr
+primMap name _ _ y = throwM $ TypeMismatch arrayName (showType y) name
+
+primPrint :: Value -> Output -> IO Value
+primPrint x o = do
+  s <- showIO x
+  appendOutput o s
+  return x
 
 primTostr :: String -> Value -> IO Value
-primTostr _ x = return $ VString $ show x
+primTostr _ x = VString <$> showIO x
 
 primShowFun :: String -> Value -> IO Value
 primShowFun _ (Fun _ name es) = return $ VString $ "\\" ++ name ++ show es
 primShowFun name f = throwM $ TypeMismatch funName (showType f) name
 
-primShowObj :: String -> Value -> IO Value
-primShowObj _ (VObject env) = do
-  let f (Left l) = return $ "::=" ++ show l
-      f (Right r) = (\x -> ":=" ++ show x) <$> atomically (readTVar r)
-  list <- M.assocs <$> traverse f env
-  let s = intercalate "," $ map (\(name,val) -> name ++ val) list
-  return $ VString $ "{" ++ s ++ "}"
-primShowObj name x = throwM $ TypeMismatch objectName (showType x) name
-
 primRandInt :: String -> Value -> IO Value
 primRandInt _ _ = VInt <$> Rand.randomIO
+
+primCopy :: String -> Value -> IO Value
+primCopy _ (VObject obj) = do
+  let copy (Left v) = return $ Left v
+      copy (Right ref) = readTVar ref >>= newTVar >>= return . Right
+  newObj <- atomically $ traverse copy obj
+  return $ VObject newObj
+primCopy name x = throwM $ TypeMismatch objectName (showType x) name
 
 primSin :: String -> Value -> IO Value
 primSin _ (VDouble d) = return $ VDouble $ sin d
@@ -122,17 +133,17 @@ primUnaryMinus _ (VInt i) = return $ VInt (- i)
 primUnaryMinus _ (VDouble d) = return $ VDouble (- d)
 primUnaryMinus name x = throwM $ TypeMismatch (intName `typeOr` doubleName) (showType x) name
 
--- object のチェック (has, hasOnly) させよう
 primsList :: [(String,Value)]
 primsList =
   [ ("true", VBool True)
   , ("false", VBool False)
   , ("pi", VDouble pi)
-  , ("print", PrimFun primPrint)
+  , ("π", VDouble pi)
+  , ("print", PrimFun $ \_ -> primPrint)
   , mk1Arg primTostr "tostr"
   , mk1Arg primShowFun "showFun"
-  , mk1Arg primShowObj "showObj"
   , mk1Arg primRandInt "randInt"
+  , mk1Arg primCopy "copy"
   , mk1Arg primFloor "floor"
   , mk1Arg primSin "sin"
   , mk1Arg primCos "cos"
@@ -153,6 +164,8 @@ primsList =
   , mk2Args primEQ "(==)"
   , mk2Args primIndex "(!)"
   , mk2Args primEnumFromTo "(--->)"
+  , mk2Args primHas "has"
+  , mk2Args' primMap "map"
   ]
 
 newEnv :: MonadIO m => m Env
@@ -160,10 +173,12 @@ newEnv = liftIO $ do
   atomically $ newTVar $ M.map Left $ M.fromList primsList
 
 std :: String
-std = "If ::= \\b x y {if b then x else y};"
-   ++ "(<<) ::= \\f g x {f (g x)};"
-   ++ "($) ::= \\f x {f x};"
-   ++ "(&&) ::= \\x y {if x then y else x};"
-   ++ "(||) ::= \\x y {if x then x else y};"
-   ++ "[!] ::= \\x {if x then false else true};"
-   ++ "π ::= pi;"
+std
+  =  "If ::= \\b x y {if b then x else y};"
+  ++ "(<<) ::= \\f g x {f (g x)};"
+  ++ "(>>) ::= \\f g x {g (f x)};"
+  ++ "($) ::= \\f x {f x};"
+  ++ "(&&) ::= \\x y {if x then y else x};"
+  ++ "(||) ::= \\x y {if x then x else y};"
+  ++ "[!] ::= \\x {if x then false else true};"
+  ++ "fix ::= \\f { \\x{f(\\y{x x y})} \\x{f(\\y{x x y})} };"
