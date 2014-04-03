@@ -23,10 +23,10 @@ actions =
     say_ s
   , colonsSep (not <$> isSelf) isOwner ["m","cmd"] "exit" exit_
   , colonsSep (not <$> isSelf) isOwner ["m","cmd"] "enter" enter_
-  , colonsEnd (not <$> isSelf) everyone ["m","cmd","update_name"] $ \name -> do
-    updateName name
-    exit_
-    enter_
+  , colonsEnd (not <$> isSelf) everyone ["m","cmd","update_name"] $ \name ->
+    updateName name >> exit_ >> enter_
+  , colonsEnd (not <$> isSelf) everyone ["m","cmd","update_icon"] $ \name ->
+    updateIcon name >> update_
   , colonsSep (not <$> isSelf) isOwner ["m","cmd","delete"] "all" $ void deleteAll
   , colonsEnd (not <$> isSelf) everyone ["m","cmd","delete"] $ \n ->
     case reads n of

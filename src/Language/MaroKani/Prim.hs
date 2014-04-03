@@ -5,13 +5,18 @@ import Data.Traversable (traverse)
 import Control.Monad.Trans
 import Control.Monad.Catch
 import Control.Applicative
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
+import Control.Concurrent.Async
 import qualified Data.Map as M
 import qualified Data.Vector as V
 import qualified System.Random as Rand
 
 mk1Arg :: (String -> Value -> IO Value) -> String -> (String,Value)
 mk1Arg f name = (name, PrimFun $ \_ v _ -> f name v)
+
+mk1Arg' :: (String -> ([Expr] -> IO Value) -> Value -> IO Value) -> String -> (String,Value)
+mk1Arg' f name = (name, PrimFun $ \ev v _ -> f name ev v)
 
 mk2Args :: (String -> Value -> Value -> IO Value) -> String -> (String,Value)
 mk2Args f name = (name, PrimFun $ \_ x _ -> return $ PrimFun $ \_ y _ -> f name x y)
@@ -85,9 +90,23 @@ primHas _ (VObject obj) (VString name) = return $ VBool $ M.member name obj
 primHas name (VObject _) y = throwM $ TypeMismatch stringName (showType y) name
 primHas name x _ = throwM $ TypeMismatch objectName (showType x) name
 
+apply :: ([Expr] -> IO Value) -> Value -> Value -> IO Value
+apply ev f v = ev [App (EValue f) (EValue v)]
+
 primMap :: String -> ([Expr] -> IO Value) -> Value -> Value -> IO Value
-primMap _ ev f (VArray arr) = VArray <$> traverse (\v -> ev [App (EValue f) (EValue v)]) arr
+primMap _ ev f (VArray arr) = VArray <$> traverse (apply ev f) arr
 primMap name _ _ y = throwM $ TypeMismatch arrayName (showType y) name
+
+primAsync :: String -> ([Expr] -> IO Value) -> Value -> IO Value
+primAsync _ ev f = VAsync <$> async (apply ev f (VBool False))
+
+primWait :: String -> Value -> IO Value
+primWait _ (VAsync a) = wait a
+primWait name x = throwM $ TypeMismatch asyncName (showType x) name
+
+primDelay :: String -> Value -> IO Value
+primDelay _ (VInt x) = threadDelay (fromIntegral x) >> return (VBool False)
+primDelay name x = throwM $ TypeMismatch intName (showType x) name
 
 primPrint :: Value -> Output -> IO Value
 primPrint x o = do
@@ -155,6 +174,9 @@ primsList =
   , ("pi", VDouble pi)
   , ("π", VDouble pi)
   , ("print", PrimFun $ \_ -> primPrint)
+  , mk1Arg' primAsync "async"
+  , mk1Arg primWait "wait"
+  , mk1Arg primDelay "delay"
   , mk1Arg primTostr "tostr"
   , mk1Arg primShowFun "showFun"
   , mk1Arg primRandInt "randInt"
@@ -185,8 +207,7 @@ primsList =
   ]
 
 newEnv :: MonadIO m => m Env
-newEnv = liftIO $ do
-  atomically $ newTVar $ M.map Left $ M.fromList primsList
+newEnv = liftIO $ atomically $ newTVar $ M.map Left $ M.fromList primsList
 
 std :: String
 std

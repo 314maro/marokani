@@ -18,6 +18,7 @@ module Language.MaroKani.Types
 , namespaceName
 , funName
 , primFunName
+, asyncName
 , typeOr
 , Expr(..)
 , MaroKaniException(..)
@@ -25,6 +26,7 @@ module Language.MaroKani.Types
 
 import Control.Monad.Trans
 import Control.Monad.Catch
+import Control.Concurrent.Async (Async)
 import Control.Concurrent.STM
 import Data.Typeable (Typeable)
 import Control.Applicative
@@ -51,6 +53,7 @@ data Value
   | VObject Env'
   | Fun (Maybe Env') String [Expr]
   | PrimFun (([Expr] -> IO Value) -> Value -> Output -> IO Value)
+  | VAsync (Async Value)
 instance Show Value where
   show (VInt i) = show i
   show (VDouble d) = show d
@@ -64,6 +67,7 @@ instance Show Value where
   show (VObject env) = "{" ++ (intercalate "," $ M.keys env) ++ "}"
   show (Fun _ _ _) = "<<fun>>"
   show (PrimFun _) = "<<prim-fun>>"
+  show (VAsync _) = "<<async>>"
 instance Eq Value where
   VInt x == VInt y = x == y
   VDouble x == VDouble y = x == y
@@ -77,6 +81,8 @@ instance Eq Value where
   _ /= PrimFun _ = False
   VObject _ /= _ = False
   _ /= VObject _ = False
+  VAsync _ /= _ = False
+  _ /= VAsync _ = False
   x /= y = not $ x == y
 isTrue :: Value -> Bool
 isTrue (VBool False) = False
@@ -98,6 +104,7 @@ showType (VArray _) = arrayName
 showType (VObject _) = objectName
 showType (Fun _ _ _) = funName
 showType (PrimFun _) = primFunName
+showType (VAsync _) = asyncName
 intName :: String
 intName = "int"
 doubleName :: String
@@ -116,6 +123,8 @@ funName :: String
 funName = "fun"
 primFunName :: String
 primFunName = "prim-fun"
+asyncName :: String
+asyncName = "async"
 typeOr :: String -> String -> String
 typeOr x y = x ++ " か " ++ y
 

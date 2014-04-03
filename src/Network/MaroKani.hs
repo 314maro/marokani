@@ -10,8 +10,10 @@ module Network.MaroKani
 , Kani
 , runKani
 , runKani'
+, kaniIO
 , asyncKani
 , updateName
+, updateIcon
 , newId
 , newId_
 , enter
@@ -28,6 +30,8 @@ module Network.MaroKani
 , delete_
 , deleteAll
 , deleteAll_
+, update
+, update_
 ) where
 
 import Network.MaroKani.Types
@@ -55,6 +59,11 @@ updateName :: String -> Kani ()
 updateName name = do
   (_,reqv) <- ask
   liftIO $ atomically $ modifyTVar reqv (\req -> req { reqName = name })
+
+updateIcon :: String -> Kani ()
+updateIcon name = do
+  (_,reqv) <- ask
+  liftIO $ atomically $ modifyTVar reqv (\req -> req { reqKanappsIcon = Just name })
 
 newId :: Kani KaniResponse
 newId = connection K.newId
@@ -96,6 +105,11 @@ deleteAll = connection K.deleteAll
 deleteAll_ :: Kani ()
 deleteAll_ = void deleteAll
 
+update :: Kani KaniResponse
+update = connection K.update
+update_ :: Kani ()
+update_ = void update
+
 runKani :: KaniConfig -> KaniRequest -> Kani a -> IO a
 runKani config request m = do
   reqv <- atomically $ newTVar request
@@ -103,3 +117,8 @@ runKani config request m = do
 
 runKani' :: KaniRequest -> Kani a -> IO a
 runKani' req m = runKani defaultConfig req m
+
+kaniIO :: Kani a -> Kani (IO a)
+kaniIO act = do
+  env <- ask
+  return $ runReaderT act env

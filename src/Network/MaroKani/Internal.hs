@@ -7,6 +7,7 @@ module Network.MaroKani.Internal
 , comet
 , delete
 , deleteAll
+, update
 , updateReq
 ) where
 
@@ -58,6 +59,9 @@ delete logno config = kani Delete1Mode
 
 deleteAll :: KaniConfig -> KaniRequest -> IO KaniResponse
 deleteAll = kani DeleteAllMode
+
+update :: KaniConfig -> KaniRequest -> IO KaniResponse
+update = kani UpdateMode
 
 updateReq :: KaniResponse -> KaniRequest -> KaniRequest
 updateReq res req = req
