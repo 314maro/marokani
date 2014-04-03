@@ -11,6 +11,7 @@ module Network.MaroKani
 , runKani
 , runKani'
 , asyncKani
+, updateName
 , newId
 , newId_
 , enter
@@ -49,6 +50,11 @@ asyncKani :: Kani a -> Kani (Async a)
 asyncKani m = do
   x <- ask
   liftIO $ async $ runReaderT m x
+
+updateName :: String -> Kani ()
+updateName name = do
+  (_,reqv) <- ask
+  liftIO $ atomically $ modifyTVar reqv (\req -> req { reqName = name })
 
 newId :: Kani KaniResponse
 newId = connection K.newId

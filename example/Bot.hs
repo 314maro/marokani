@@ -10,24 +10,29 @@ import Control.Applicative
 
 actions :: [Script]
 actions =
-  [ colonsEnd (not <$> isSelf) ["m","cal"] $ \code -> void $ do
+  [ colonsEnd (not <$> isSelf) everyone ["m","cal"] $ \code -> do
     let s = either to2byteSpace (("res: " ++) . show) $ Calc.run code
-    say s
-  , colonsEnd (not <$> isSelf) ["m","m"] $ \code -> void $ do
+    say_ s
+  , colonsEnd (not <$> isSelf) everyone ["m","m"] $ \code -> do
     s <- liftIO $ catch (MaroKani.run (Just 2) (Just 512) code) tostr
     let s' = if null s then "(empty)" else s
     liftIO $ putStrLn s'
-    say s'
-  , colonsEnd (not <$> isSelf) ["m","parse"] $ \code -> void $ do
-    s <- liftIO $ catch (show <$> MaroKani.parseIO code) tostr
-    say s
-  , colonsSep isOwner ["m","cmd"] "exit" $ void exit
-  , colonsSep isOwner ["m","cmd"] "enter" $ void enter
-  , colonsSep isOwner ["m","cmd","delete"] "all" $ void deleteAll
-  , colonsEnd (not <$> isSelf) ["m","cmd","delete"] $ \n -> void $
+    say_ s'
+  , colonsEnd (not <$> isSelf) everyone ["m","parse"] $ \code -> do
+    s <- liftIO $ catch (show <$> MaroKani.parseIO' (Just 2) (Just 512) code) tostr
+    say_ s
+  , colonsSep (not <$> isSelf) isOwner ["m","cmd"] "exit" exit_
+  , colonsSep (not <$> isSelf) isOwner ["m","cmd"] "enter" enter_
+  , colonsEnd (not <$> isSelf) everyone ["m","cmd","update_name"] $ \name -> do
+    updateName name
+    exit_
+    enter_
+  , colonsSep (not <$> isSelf) isOwner ["m","cmd","delete"] "all" $ void deleteAll
+  , colonsEnd (not <$> isSelf) everyone ["m","cmd","delete"] $ \n ->
     case reads n of
-      [(n',"")] -> delete n'
-      _ -> say "parser error"
+      [(n',"")] -> delete_ n'
+      _ -> say_ "parser error"
+  , colonsEnd (not <$> isSelf) everyone ["m","cmd"] $ \name -> say_ $ name ++ "なんて、あるわけない"
   ]
   where
     to2byteSpace (' ':' ':' ':' ':xs) = "　 " ++ to2byteSpace xs

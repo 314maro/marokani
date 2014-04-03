@@ -4,6 +4,7 @@ module Language.MaroKani
 , eval'
 , parse
 , parseIO
+, parseIO'
 , MaroKaniException(..)
 ) where
 
@@ -23,23 +24,34 @@ parseIO code = case parse code of
   Failure doc -> throwM $ ParserError doc
   Success es -> return es
 
-limit :: Int -> String -> IO String
-limit i _ | i < 0 = throwM StringTooLong
-limit _ [] = return []
-limit i (x:xs) = (x :) <$> limit (i-1) xs
+lenLimit :: Int -> String -> IO String
+lenLimit i _ | i < 0 = throwM StringTooLong
+lenLimit _ [] = return []
+lenLimit i (x:xs) = (x :) <$> lenLimit (i-1) xs
+
+timeLimitMaybe :: Maybe Int -> IO a -> IO a
+timeLimitMaybe Nothing m = m
+timeLimitMaybe (Just t) m = do
+  result <- threadDelay (t*1000*1000) `race` m
+  case result of
+    Left _ -> throwM TimeOver
+    Right r -> return r
 
 run :: Maybe Int -> Maybe Int -> String -> IO String
 run time len code = do
-  exprs <- parseIO code
-  env <- newEnv
   o <- atomically $ newTVar id
-  result <- case time of
-    Nothing -> Right <$> eval' env o exprs
-    Just t -> threadDelay (t*1000*1000) `race` eval' env o exprs
-  case result of
-    Left _ -> throwM TimeOver
-    Right _ -> do
-      s <- atomically $ readTVar o <*> pure ""
-      case len of
-        Nothing -> return s
-        Just l -> limit l s
+  timeLimitMaybe time $ do
+    exprs <- parseIO code
+    env <- newEnv
+    _ <- eval' env o exprs
+    s <- atomically $ readTVar o <*> pure ""
+    case len of
+      Nothing -> return s
+      Just l -> lenLimit l s
+
+parseIO' :: Maybe Int -> Maybe Int -> String -> IO String
+parseIO' time len code = do
+  s <- timeLimitMaybe time $ parseIO code
+  case len of
+    Nothing -> return $ show s
+    Just l -> lenLimit l $ show s

@@ -1,6 +1,7 @@
 module Network.MaroKani.Bot
 ( mkReacts
 , Script
+, everyone
 , colonsEnd
 , colonsSep
 , nameIs
@@ -18,6 +19,9 @@ import Data.List (stripPrefix)
 type Condition = ReaderT (KaniResponse,KaniLog) Maybe Bool
 
 type Script = ReaderT (KaniResponse,KaniLog) Maybe (Kani ())
+
+everyone :: Condition
+everyone = return True
 
 nameIs :: String -> Condition
 nameIs s = do
@@ -44,23 +48,25 @@ stripPrefixes prefixes msg = foldM (\s pre -> stripPrefix pre s >>= stripColon) 
     stripColon ('：':str) = Just str
     stripColon _ = Nothing
 
--- 無視と権限と区別すべき
-colonsEnd :: Condition -> [String] -> (String -> Kani ()) -> Script
-colonsEnd cond prefixes act = do
-  b <- cond
-  guard b
+authorize :: Condition -> Script -> Script
+authorize auth script = do
+  b <- auth
+  if b then script else return $ say_ "権限がない"
+
+colonsEnd :: Condition -> Condition -> [String] -> (String -> Kani ()) -> Script
+colonsEnd cond auth prefixes act = do
+  cond >>= guard
   (_,kaniLog) <- ask
   s <- lift $ prefixes `stripPrefixes` logMessage kaniLog
-  return $ act s
+  authorize auth $ return $ act s
 
-colonsSep :: Condition -> [String] -> String -> Kani () -> Script
-colonsSep cond prefixes cmdName act = do
-  b <- cond
-  guard b
+colonsSep :: Condition -> Condition -> [String] -> String -> Kani () -> Script
+colonsSep cond auth prefixes cmdName act = do
+  cond >>= guard
   (_,kaniLog) <- ask
   s <- lift $ prefixes `stripPrefixes` logMessage kaniLog
   guard (s == cmdName)
-  return act
+  authorize auth $ return act
 
 runScript :: KaniResponse -> KaniLog -> Script -> Maybe (Kani ())
 runScript res kaniLog script = runReaderT script (res,kaniLog)

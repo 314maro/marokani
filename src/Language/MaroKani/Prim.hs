@@ -31,12 +31,21 @@ calcNum _ _ _ _ x _ s = throwM $ TypeMismatch (intName `typeOr` doubleName) (sho
 
 primAdd :: String -> Value -> Value -> IO Value
 primAdd _ (VString x) (VString y) = return $ VString $ x ++ y
+primAdd _ (VArray x) (VArray y) = return $ VArray $ x V.++ y
 primAdd name (VString _) y = throwM $ TypeMismatch stringName (showType y) name
 primAdd name x (VString _) = throwM $ TypeMismatch stringName (showType x) name
+primAdd name (VArray _) y = throwM $ TypeMismatch arrayName (showType y) name
+primAdd name x (VArray _) = throwM $ TypeMismatch arrayName (showType x) name
 primAdd name x y = calcNum (+) (+) VInt VDouble x y name
 primSub :: String -> Value -> Value -> IO Value
 primSub name x y = calcNum (-) (-) VInt VDouble x y name
 primMul :: String -> Value -> Value -> IO Value
+primMul _ (VString x) (VInt y) = let y' = fromIntegral y in
+  return $ VString $ concat $ replicate y' x
+primMul name (VString _) y = throwM $ TypeMismatch intName (showType y) name
+primMul _ (VArray x) (VInt y) = let y' = fromIntegral y in
+  return $ VArray $ V.concat $ replicate y' x
+primMul name (VArray _) y = throwM $ TypeMismatch intName (showType y) name
 primMul name x y = calcNum (*) (*) VInt VDouble x y name
 primDiv :: String -> Value -> Value -> IO Value
 primDiv name x y = calcNum div (/) VInt VDouble x y name
@@ -60,7 +69,8 @@ primEQ :: String -> Value -> Value -> IO Value
 primEQ _ x y = return $ VBool $ x == y
 
 primIndex :: String -> Value -> Value -> IO Value
-primIndex _ (VArray arr) (VInt i) = return $ arr V.! fromIntegral i
+primIndex _ (VArray arr) (VInt i) = let i' = fromIntegral i in
+  maybe (throwM $ IndexOutOfBounds arr i') return $ arr V.!? i'
 primIndex _ (VString s) (VInt i) = return $ VString $ take 1 $ drop (fromIntegral i) s
 primIndex name (VArray _) i = throwM $ TypeMismatch intName (showType i) name
 primIndex name (VString _) i = throwM $ TypeMismatch intName (showType i) name
@@ -94,6 +104,11 @@ primShowFun name f = throwM $ TypeMismatch funName (showType f) name
 
 primRandInt :: String -> Value -> IO Value
 primRandInt _ _ = VInt <$> Rand.randomIO
+
+primLength :: String -> Value -> IO Value
+primLength _ (VArray arr) = return $ VInt $ fromIntegral $ V.length arr
+primLength _ (VString s) = return $ VInt $ fromIntegral $ length s
+primLength name x = throwM $ TypeMismatch (arrayName `typeOr` stringName) (showType x) name
 
 primCopy :: String -> Value -> IO Value
 primCopy _ (VObject obj) = do
@@ -143,6 +158,7 @@ primsList =
   , mk1Arg primTostr "tostr"
   , mk1Arg primShowFun "showFun"
   , mk1Arg primRandInt "randInt"
+  , mk1Arg primLength "length"
   , mk1Arg primCopy "copy"
   , mk1Arg primFloor "floor"
   , mk1Arg primSin "sin"

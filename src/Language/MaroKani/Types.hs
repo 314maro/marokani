@@ -15,6 +15,7 @@ module Language.MaroKani.Types
 , boolName
 , arrayName
 , objectName
+, namespaceName
 , funName
 , primFunName
 , typeOr
@@ -109,6 +110,8 @@ arrayName :: String
 arrayName = "array"
 objectName :: String
 objectName = "object"
+namespaceName :: String
+namespaceName = "namespace"
 funName :: String
 funName = "fun"
 primFunName :: String
@@ -123,7 +126,11 @@ data Expr
   | EObject [(String,Bool,Expr)]
   | App Expr Expr
   | Multi [Expr]
+  | ENamespace String [(String,Expr)]
+  | Import (Maybe Expr) String
   | If Expr Expr (Maybe Expr)
+  | While Expr Expr
+  | For (Maybe Expr) (Maybe Expr) (Maybe Expr) Expr
   | ObjectRef Expr String
   | Asgn String Expr
   | Decl String Bool Expr
@@ -135,6 +142,7 @@ data MaroKaniException
   | UnknownName String String
   | ParserError Doc
   | InternalError String
+  | IndexOutOfBounds (V.Vector Value) Int
   | StringTooLong
   | TimeOver
   | Default String
@@ -146,6 +154,7 @@ instance Show MaroKaniException where
   show (UnknownName name p) = "知らない名前: " ++ name ++ showPlace p
   show (ParserError doc) = show $ plain doc
   show (InternalError s) = "内部のエラー: " ++ s
+  show (IndexOutOfBounds arr i) = "インデックスでかすぎ: " ++ show (VArray arr) ++ ", " ++ show i
   show StringTooLong = "出力長すぎ"
   show TimeOver = "時間かかりすぎ"
   show (Default s) = "エラー: " ++ s

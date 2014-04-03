@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, TupleSections #-}
 
 module Language.MaroKani.Parser
 ( parse
@@ -27,7 +27,9 @@ instance T.TokenParsing Parser where
 
 idStyle :: T.IdentifierStyle Parser
 idStyle = TS.emptyIdents
-  { T._styleReserved = HashSet.fromList ["_","if","then","else"] }
+  { T._styleReserved = HashSet.fromList
+    ["_","if","then","else","while","for","do","namespace","import"]
+  }
 
 opStyle :: T.IdentifierStyle Parser
 opStyle = (TS.emptyOps :: T.IdentifierStyle Parser)
@@ -53,7 +55,7 @@ value :: Parser Value
 value = (either VInt VDouble <$> T.naturalOrDouble)
   <|> (VString <$> T.stringLiteral)
   <|> (VBool False <$ T.symbol "()")
-  <|> (mkFun <$ T.symbol "\\" <*> some (var <|> reservedId "_") <*> T.braces exprs)
+  <|> (mkFun <$ T.symbol "\\" <*> many (var <|> reservedId "_") <*> T.braces exprs)
   where
     mkFun [] es = Fun Nothing "_" es
     mkFun [v] es = Fun Nothing v es
@@ -79,14 +81,17 @@ unaryOper = do
   e <- expr
   return $ App (Var $ addBrackets name) e
 
+declConst :: Parser ()
+declConst = operName "::="
+
 isDeclConst :: Parser Bool
-isDeclConst = (True <$ operName "::=") <|> (False <$ operName ":=")
+isDeclConst = (True <$ declConst) <|> (False <$ operName ":=")
 
 fact :: Parser Expr
 fact = T.try (Var <$> var)
   <|> (EValue <$> value)
   <|> T.try (T.brackets $ mk2ArgsOper "--->" <*> expr <* T.symbol ",," <*> expr)
-  <|> (T.brackets $ EArray <$> T.commaSep1 expr)
+  <|> (T.brackets $ EArray <$> T.commaSep expr)
   <|> (T.braces $ EObject <$> (T.commaSep $ (,,) <$> var <*> isDeclConst <*> expr))
   <|> (Multi <$> T.parens exprs)
 
@@ -125,22 +130,44 @@ parseOr = parseAnd `T.chainl1` opers "|"
 dollar :: Parser Expr
 dollar = parseOr `T.chainr1` opers "$?"
 
+objectChain :: Parser (Expr,String)
+objectChain = (,) <$> fact <* operName "." <*> var
+
 asgn :: Parser Expr
 asgn = T.try (Asgn <$> var <* operName "=" <*> expr)
   <|> T.try (Decl <$> var <*> isDeclConst <*> expr)
-  <|> T.try (ObjectAsgn <$> fact <* operName "." <*> var <* operName "=" <*> expr)
+  <|> T.try (uncurry ObjectAsgn <$> objectChain <* operName "=" <*> expr)
   <|> dollar
 
-parseIf :: Parser Expr
-parseIf = If <$ reservedId "if" <*> expr
+namespace :: Parser Expr
+namespace = ENamespace <$ reservedId "namespace" <*> var
+  <*> T.braces (T.commaSep $ (,) <$> var <* declConst <*> expr)
+
+import' :: Parser Expr
+import' = uncurry Import <$ reservedId "import"
+  <*> (((\(x,y) -> (Just x,y)) <$> T.try objectChain) <|> ((Nothing,) <$> var))
+
+if' :: Parser Expr
+if' = If <$ reservedId "if" <*> expr
   <* reservedId "then" <*> expr
   <*> optional (reservedId "else" *> expr)
 
+while :: Parser Expr
+while = While <$ reservedId "while" <*> expr
+  <* reservedId "do" <*> expr
+
+for :: Parser Expr
+for = For <$ reservedId "for" <*> optional expr
+  <* T.symbol ";" <*> optional expr
+  <* T.symbol ";" <*> optional expr
+  <* reservedId "do" <*> expr
+
 expr :: Parser Expr
-expr = parseIf <|> asgn
+expr = namespace <|> import' <|> if' <|> while <|> for <|> asgn
+  T.<?> "expr"
 
 exprs :: Parser [Expr]
-exprs = optional T.someSpace *> T.sepEndBy expr T.semi
+exprs = optional T.someSpace *> T.sepEndBy expr T.semi T.<?> "exprs"
 
 parse :: String -> T.Result [Expr]
 parse s = T.parseString (runParser exprs) mempty s

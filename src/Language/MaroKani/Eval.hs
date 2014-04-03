@@ -51,11 +51,50 @@ evalF env o (App e1 e2) = do
   apply env o v1 v2
 evalF env o (Multi exprs) = do
   eval env o exprs
+evalF env o (ENamespace name decls) = do
+  let f (vname,e) = do
+        v <- evalF env o e
+        return (vname, Left v)
+  envList' <- mapM f decls
+  let namespace = VObject $ M.fromList envList'
+  liftIO $ atomically $ modifyTVar env (M.insert name (Left namespace))
+  return namespace
+evalF env o (Import exprM name) = do
+  let place = "import"
+  objEnv <- case exprM of
+    Nothing -> liftIO $ atomically $ readTVar env
+    Just expr -> do
+      v <- evalF env o expr
+      case v of
+        VObject obj -> return obj
+        _ -> throwM $ TypeMismatch namespaceName (showType v) place
+  let modify (VObject obj) = liftIO $ atomically $ modifyTVar env (M.union obj)
+      modify x = throwM $ TypeMismatch namespaceName (showType x) place
+  case M.lookup name objEnv of
+    Nothing -> throwM $ UnknownName name place
+    Just (Left x) -> modify x
+    Just (Right ref) -> liftIO (atomically $ readTVar ref) >>= modify
+  return $ VBool False
 evalF env o (If cond tru fls) = do
   cond' <- evalF env o cond
   let tru' = evalF env o tru
   let fls' = maybe (return $ VBool False) (evalF env o) fls
   if isTrue cond' then tru' else fls'
+evalF env o (While p body) = do
+  let loop = do
+        b <- evalF env o p
+        if isTrue b
+          then evalF env o body >> loop
+          else return b
+  loop
+evalF env o (For ini p inc body) = do
+  let evalFMaybe = maybe (return ()) (\expr -> evalF env o expr >> return ())
+  evalFMaybe ini
+  let loop = let loop' = evalF env o body >> evalFMaybe inc >> loop in
+        case p of
+          Nothing -> loop'
+          Just p' -> evalF env o p' >>= \b -> if isTrue b then loop' else return b
+  loop
 evalF env o (ObjectRef obj name) = do
   let place = "objectRef"
   obj' <- evalF env o obj

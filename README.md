@@ -72,3 +72,7 @@ if
 オブジェクトのコピー
 
     a := { x := 1 }; b := copy a; a.x = 0; print b
+
+名前空間(実態はオブジェクト)
+
+    namespace hage { kami ::= 0 }; print hage.kami; import hage; print kami
