@@ -47,6 +47,7 @@ var :: Parser String
 var = T.ident idStyle
   <|> (addParens <$> T.parens (T.ident opStyle))
   <|> (addBrackets <$> T.brackets (T.ident opStyle))
+  T.<?> "variable"
 
 reservedId :: String -> Parser String
 reservedId s = T.token $ T.string s <* T.notFollowedBy (T.ident idStyle :: Parser String)
@@ -56,6 +57,7 @@ value = (either VInt VDouble <$> T.naturalOrDouble)
   <|> (VString <$> T.stringLiteral)
   <|> (VBool False <$ T.symbol "()")
   <|> (mkFun <$ T.symbol "\\" <*> many (var <|> reservedId "_") <*> T.braces exprs)
+  T.<?> "value"
   where
     mkFun [] es = Fun Nothing "_" es
     mkFun [v] es = Fun Nothing v es
@@ -88,12 +90,12 @@ isDeclConst :: Parser Bool
 isDeclConst = (True <$ declConst) <|> (False <$ operName ":=")
 
 fact :: Parser Expr
-fact = T.try (Var <$> var)
-  <|> (EValue <$> value)
-  <|> T.try (T.brackets $ mk2ArgsOper "--->" <*> expr <* T.symbol ",," <*> expr)
-  <|> (T.brackets $ EArray <$> T.commaSep expr)
+fact = (EValue <$> value)
+  <|> T.try (Var <$> var)
+  <|> (T.brackets $ T.try (mk2ArgsOper "--->" <*> expr <* T.symbol ",," <*> expr) <|> (EArray <$> T.commaSep expr))
   <|> (T.braces $ EObject <$> (T.commaSep $ (,,) <$> var <*> isDeclConst <*> expr))
   <|> (Multi <$> T.parens exprs)
+  T.<?> "factor"
 
 objectRef :: Parser Expr
 objectRef = foldl ObjectRef <$> fact <*> many (operName "." *> var)
@@ -114,8 +116,8 @@ addSub :: Parser Expr
 addSub = mulDiv `T.chainl1` opers "+-:@"
 
 backQuote :: Parser Expr
-backQuote = T.chainl1 addSub $ T.try $ do
-  e <- T.between (T.symbol "`") (T.symbol "`") expr
+backQuote = T.chainl1 addSub $ do
+  e <- T.between (T.symbol "`") (T.symbol "`") addSub
   return $ \a b -> e `App` a `App` b
 
 comp :: Parser Expr
@@ -134,8 +136,8 @@ objectChain :: Parser (Expr,String)
 objectChain = (,) <$> fact <* operName "." <*> var
 
 asgn :: Parser Expr
-asgn = T.try (Asgn <$> var <* operName "=" <*> expr)
-  <|> T.try (Decl <$> var <*> isDeclConst <*> expr)
+asgn = T.try (Decl <$> var <*> isDeclConst <*> expr)
+  <|> T.try (Asgn <$> var <* operName "=" <*> expr)
   <|> T.try (uncurry ObjectAsgn <$> objectChain <* operName "=" <*> expr)
   <|> dollar
 

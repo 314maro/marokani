@@ -18,16 +18,13 @@ factor = (ExprNum . either fromInteger id <$> T.integerOrDouble)
   <|> T.parens expr
 
 factor' :: T.Parser Expr
-factor' = T.chainl1 factor
-  $ (Pow <$ T.symbolic '^')
+factor' = factor `T.chainl1` (Pow <$ T.symbolic '^')
 
 term :: T.Parser Expr
-term = T.chainl1 factor'
-  $ (Mul <$ T.symbolic '*') <|> (Div <$ T.symbolic '/')
+term = factor' `T.chainl1` ((Mul <$ T.symbolic '*') <|> (Div <$ T.symbolic '/'))
 
 expr :: T.Parser Expr
-expr = T.chainl1 term
-  $ (Add <$ T.symbolic '+') <|> (Sub <$ T.symbolic '-')
+expr = term `T.chainl1` ((Add <$ T.symbolic '+') <|> (Sub <$ T.symbolic '-'))
 
 runExpr :: Expr -> Either String Double
 runExpr (ExprNum n) = Right n

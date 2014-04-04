@@ -112,7 +112,10 @@ primPrint :: Value -> Output -> IO Value
 primPrint x o = do
   s <- showIO x
   appendOutput o s
-  return x
+  return primPrintV
+
+primPrintV :: Value
+primPrintV = PrimFun $ \_ -> primPrint
 
 primTostr :: String -> Value -> IO Value
 primTostr _ x = VString <$> showIO x
@@ -173,7 +176,7 @@ primsList =
   , ("false", VBool False)
   , ("pi", VDouble pi)
   , ("π", VDouble pi)
-  , ("print", PrimFun $ \_ -> primPrint)
+  , ("print", primPrintV)
   , mk1Arg' primAsync "async"
   , mk1Arg primWait "wait"
   , mk1Arg primDelay "delay"

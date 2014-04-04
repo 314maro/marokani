@@ -7,6 +7,9 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
+flag debug
+  default:     False
+
 library
   ghc-options:       -Wall -O2
   hs-source-dirs:    src
@@ -49,8 +52,7 @@ library
     ansi-wl-pprint >=0.6.6,
     random >=1.0.1.0
 
-Test-Suite bot
-  type:              exitcode-stdio-1.0
+executable bot
   main-is:           Bot.hs
   ghc-options:       -Wall -O2
   default-language:  Haskell2010
@@ -62,12 +64,14 @@ Test-Suite bot
     exceptions >=0.3,
     mtl >=2.0.0.0
 
-Test-Suite repl
-  type:              exitcode-stdio-1.0
+executable repl
   main-is:           Repl.hs
   ghc-options:       -Wall -O2
   default-language:  Haskell2010
   hs-source-dirs:    example/
+
+  if flag(debug)
+    ghc-options:     -with-rtsopts=-s
 
   build-depends:
     base  >=4.4 && <5,
