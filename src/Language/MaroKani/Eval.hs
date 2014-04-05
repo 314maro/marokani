@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module Language.MaroKani.Eval (eval, eval') where
 
 import Language.MaroKani.Types
@@ -6,14 +8,13 @@ import Language.MaroKani.Parser
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Catch
-import Control.Applicative
 import Control.Concurrent.STM
 import qualified Data.Map as M
 import qualified Data.Vector as V
 
 apply :: (MonadIO m, MonadCatch m) => Env -> Output -> Value -> Value -> m Value
 apply _ o (Fun (Just fenv') name body) x = do
-  fenv <- liftIO $ atomically $ newTVar $ M.insert name (Left x) fenv'
+  fenv <- liftIO $ atomically $ newTVar $ M.insert name x fenv'
   eval fenv o body
 apply _ _ (Fun Nothing _ _) _ = throwM $ InternalError "環境が Nothing の関数"
 apply env o (PrimFun f) x = liftIO $ f (eval env o) x o
@@ -25,8 +26,7 @@ evalF env _ (Var name) = do
     env' <- readTVar env
     case M.lookup name env' of
       Nothing -> return Nothing
-      Just (Left val) -> return $ Just val
-      Just (Right ref) -> Just <$> readTVar ref
+      Just val -> return $ Just val
   case result of
     Nothing -> throwM $ UnknownName name "ref"
     Just val -> return val
@@ -36,14 +36,7 @@ evalF env _ (EValue (Fun Nothing name expr)) = do
 evalF _ _ (EValue val) = return val
 evalF env o (EArray exprs) = liftM (VArray . V.fromList) $ mapM (evalF env o) exprs
 evalF env o (EObject envList) = do
-  let f (name,True,e) = do
-        v <- evalF env o e
-        return (name, Left v)
-      f (name,False,e) = do -- この処理まとめよう
-        v <- evalF env o e
-        ref <- liftIO $ atomically $ newTVar v
-        return (name, Right ref)
-  envList' <- mapM f envList
+  envList' <- mapM (\(name,e) -> (name,) `liftM` evalF env o e) envList
   return $ VObject $ M.fromList envList'
 evalF env o (App e1 e2) = do
   v1 <- evalF env o e1
@@ -54,10 +47,10 @@ evalF env o (Multi exprs) = do
 evalF env o (ENamespace name decls) = do
   let f (vname,e) = do
         v <- evalF env o e
-        return (vname, Left v)
+        return (vname, v)
   envList' <- mapM f decls
   let namespace = VObject $ M.fromList envList'
-  liftIO $ atomically $ modifyTVar env (M.insert name (Left namespace))
+  liftIO $ atomically $ modifyTVar env (M.insert name namespace)
   return namespace
 evalF env o (Import exprM name) = do
   let place = "import"
@@ -72,8 +65,7 @@ evalF env o (Import exprM name) = do
       modify x = throwM $ TypeMismatch namespaceName (showType x) place
   case M.lookup name objEnv of
     Nothing -> throwM $ UnknownName name place
-    Just (Left x) -> modify x
-    Just (Right ref) -> liftIO (atomically $ readTVar ref) >>= modify
+    Just x -> modify x
   return $ VBool False
 evalF env o (If cond tru fls) = do
   cond' <- evalF env o cond
@@ -102,46 +94,12 @@ evalF env o (ObjectRef obj name) = do
     VObject objEnv -> do
       case M.lookup name objEnv of
         Nothing -> throwM $ UnknownName name place
-        Just (Left val) -> return val
-        Just (Right ref) -> liftIO $ atomically $ readTVar ref
+        Just val -> return val
     _ -> throwM $ TypeMismatch objectName (showType obj') place
-evalF env o (Asgn name expr) = do
-  let place = "assign"
+evalF env o (Decl name expr) = do
   val <- evalF env o expr
-  result <- liftIO $ atomically $ do
-    env' <- readTVar env
-    let var = M.lookup name env'
-    case var of
-      Just (Right ref) -> writeTVar ref val
-      _ -> return ()
-    return var
-  case result of
-    Just (Right _) -> return val
-    Just (Left _) -> throwM $ TypeMismatch "mutable" "const" place
-    Nothing -> throwM $ UnknownName name place
-evalF env o (Decl name True expr) = do
-  val <- evalF env o expr
-  liftIO $ atomically $ modifyTVar env (M.insert name (Left val))
+  liftIO $ atomically $ modifyTVar env (M.insert name val)
   return val
-evalF env o (Decl name False expr) = do
-  val <- evalF env o expr
-  liftIO $ atomically $ do
-    ref <- newTVar val
-    modifyTVar env (M.insert name (Right ref))
-  return val
-evalF env o (ObjectAsgn obj name e) = do
-  let place = "objectAsgn"
-  obj' <- evalF env o obj
-  val <- evalF env o e
-  case obj' of
-    VObject objEnv -> do
-      case M.lookup name objEnv of
-        Just (Right ref) -> do
-          liftIO $ atomically $ writeTVar ref val
-          return obj'
-        Just (Left _) -> throwM $ TypeMismatch "mutable" "const" place
-        Nothing -> throwM $ UnknownName name place
-    _ -> throwM $ TypeMismatch objectName (showType obj') place
 
 eval :: (MonadIO m, MonadCatch m) => Env -> Output -> [Expr] -> m Value
 eval env o exprs = foldM (\_ e -> evalF env o e) (VBool False) exprs

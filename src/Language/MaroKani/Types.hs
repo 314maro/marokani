@@ -7,7 +7,6 @@ module Language.MaroKani.Types
 , appendOutput
 , Value(..)
 , isTrue
-, showIO
 , showType
 , intName
 , doubleName
@@ -19,6 +18,7 @@ module Language.MaroKani.Types
 , funName
 , primFunName
 , asyncName
+, mutableName
 , typeOr
 , Expr(..)
 , MaroKaniException(..)
@@ -29,14 +29,12 @@ import Control.Monad.Catch
 import Control.Concurrent.Async (Async)
 import Control.Concurrent.STM
 import Data.Typeable (Typeable)
-import Control.Applicative
-import Data.Traversable (traverse)
 import Data.List (intercalate)
 import qualified Data.Map as M
 import qualified Data.Vector as V
 import Text.PrettyPrint.ANSI.Leijen (Doc, plain)
 
-type Env' = M.Map String (Either Value (TVar Value))
+type Env' = M.Map String Value
 type Env = TVar Env'
 
 type Output = TVar (String -> String)
@@ -54,6 +52,7 @@ data Value
   | Fun (Maybe Env') String [Expr]
   | PrimFun (([Expr] -> IO Value) -> Value -> Output -> IO Value)
   | VAsync (Async Value)
+  | Mutable (TVar Value)
 instance Show Value where
   show (VInt i) = show i
   show (VDouble d) = show d
@@ -64,10 +63,13 @@ instance Show Value where
     where
       f 0 v s = shows v s
       f _ v s = ',' : shows v s
-  show (VObject env) = "{" ++ (intercalate "," $ M.keys env) ++ "}"
+  show (VObject env) = "{"
+    ++ (intercalate "," $ map (\(k,v) -> k ++ "::=" ++ show v) $ M.assocs env)
+    ++ "}"
   show (Fun _ _ _) = "<<fun>>"
   show (PrimFun _) = "<<prim-fun>>"
   show (VAsync _) = "<<async>>"
+  show (Mutable _) = "<<mutable>>"
 instance Eq Value where
   VInt x == VInt y = x == y
   VDouble x == VDouble y = x == y
@@ -83,18 +85,12 @@ instance Eq Value where
   _ /= VObject _ = False
   VAsync _ /= _ = False
   _ /= VAsync _ = False
+  Mutable _ /= _ = False
+  _ /= Mutable _ = False
   x /= y = not $ x == y
 isTrue :: Value -> Bool
 isTrue (VBool False) = False
 isTrue _ = True
-showIO :: Value -> IO String
-showIO (VObject env) = do
-  let f (Left l) = return $ "::=" ++ show l
-      f (Right r) = (\x -> ":=" ++ show x) <$> atomically (readTVar r)
-  list <- M.assocs <$> traverse f env
-  let s = intercalate "," $ map (\(name,val) -> name ++ val) list
-  return $ "{" ++ s ++ "}"
-showIO x = return $ show x
 showType :: Value -> String
 showType (VInt _) = intName
 showType (VDouble _) = doubleName
@@ -105,6 +101,7 @@ showType (VObject _) = objectName
 showType (Fun _ _ _) = funName
 showType (PrimFun _) = primFunName
 showType (VAsync _) = asyncName
+showType (Mutable _) = mutableName
 intName :: String
 intName = "int"
 doubleName :: String
@@ -125,6 +122,8 @@ primFunName :: String
 primFunName = "prim-fun"
 asyncName :: String
 asyncName = "async"
+mutableName :: String
+mutableName = "mutable"
 typeOr :: String -> String -> String
 typeOr x y = x ++ " か " ++ y
 
@@ -132,7 +131,7 @@ data Expr
   = Var String
   | EValue Value
   | EArray [Expr]
-  | EObject [(String,Bool,Expr)]
+  | EObject [(String,Expr)]
   | App Expr Expr
   | Multi [Expr]
   | ENamespace String [(String,Expr)]
@@ -141,9 +140,7 @@ data Expr
   | While Expr Expr
   | For (Maybe Expr) (Maybe Expr) (Maybe Expr) Expr
   | ObjectRef Expr String
-  | Asgn String Expr
-  | Decl String Bool Expr
-  | ObjectAsgn Expr String Expr
+  | Decl String Expr
   deriving (Show)
 
 data MaroKaniException

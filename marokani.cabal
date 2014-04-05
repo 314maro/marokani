@@ -70,9 +70,6 @@ executable repl
   default-language:  Haskell2010
   hs-source-dirs:    example/
 
-  if flag(debug)
-    ghc-options:     -with-rtsopts=-s
-
   build-depends:
     base  >=4.4 && <5,
     marokani,

@@ -97,6 +97,17 @@ primMap :: String -> ([Expr] -> IO Value) -> Value -> Value -> IO Value
 primMap _ ev f (VArray arr) = VArray <$> traverse (apply ev f) arr
 primMap name _ _ y = throwM $ TypeMismatch arrayName (showType y) name
 
+primAssign :: String -> Value -> Value -> IO Value
+primAssign _ (Mutable v) r = liftIO $ atomically $ writeTVar v r >> return r
+primAssign name x _ = throwM $ TypeMismatch mutableName (showType x) name
+
+primNewMutable :: String -> Value -> IO Value
+primNewMutable _ x = liftIO $ atomically $ Mutable <$> newTVar x
+
+primGetMutable :: String -> Value -> IO Value
+primGetMutable _ (Mutable v) = liftIO $ atomically $ readTVar v
+primGetMutable name x = throwM $ TypeMismatch mutableName (showType x) name
+
 primAsync :: String -> ([Expr] -> IO Value) -> Value -> IO Value
 primAsync _ ev f = VAsync <$> async (apply ev f (VBool False))
 
@@ -110,15 +121,14 @@ primDelay name x = throwM $ TypeMismatch intName (showType x) name
 
 primPrint :: Value -> Output -> IO Value
 primPrint x o = do
-  s <- showIO x
-  appendOutput o s
+  appendOutput o $ show x
   return primPrintV
 
 primPrintV :: Value
 primPrintV = PrimFun $ \_ -> primPrint
 
 primTostr :: String -> Value -> IO Value
-primTostr _ x = VString <$> showIO x
+primTostr _ x = return $ VString $ show x
 
 primShowFun :: String -> Value -> IO Value
 primShowFun _ (Fun _ name es) = return $ VString $ "\\" ++ name ++ show es
@@ -131,14 +141,6 @@ primLength :: String -> Value -> IO Value
 primLength _ (VArray arr) = return $ VInt $ fromIntegral $ V.length arr
 primLength _ (VString s) = return $ VInt $ fromIntegral $ length s
 primLength name x = throwM $ TypeMismatch (arrayName `typeOr` stringName) (showType x) name
-
-primCopy :: String -> Value -> IO Value
-primCopy _ (VObject obj) = do
-  let copy (Left v) = return $ Left v
-      copy (Right ref) = readTVar ref >>= newTVar >>= return . Right
-  newObj <- atomically $ traverse copy obj
-  return $ VObject newObj
-primCopy name x = throwM $ TypeMismatch objectName (showType x) name
 
 primSin :: String -> Value -> IO Value
 primSin _ (VDouble d) = return $ VDouble $ sin d
@@ -184,7 +186,6 @@ primsList =
   , mk1Arg primShowFun "showFun"
   , mk1Arg primRandInt "randInt"
   , mk1Arg primLength "length"
-  , mk1Arg primCopy "copy"
   , mk1Arg primFloor "floor"
   , mk1Arg primSin "sin"
   , mk1Arg primCos "cos"
@@ -207,10 +208,13 @@ primsList =
   , mk2Args primEnumFromTo "(--->)"
   , mk2Args primHas "has"
   , mk2Args' primMap "map"
+  , mk1Arg primNewMutable "newMutable"
+  , mk1Arg primGetMutable "[*]"
+  , mk2Args primAssign "(=)"
   ]
 
 newEnv :: MonadIO m => m Env
-newEnv = liftIO $ atomically $ newTVar $ M.map Left $ M.fromList primsList
+newEnv = liftIO $ atomically $ newTVar $ M.fromList primsList
 
 std :: String
 std

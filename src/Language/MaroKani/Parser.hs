@@ -86,14 +86,14 @@ unaryOper = do
 declConst :: Parser ()
 declConst = operName "::="
 
-isDeclConst :: Parser Bool
-isDeclConst = (True <$ declConst) <|> (False <$ operName ":=")
+isDeclConst :: Parser (Expr -> Expr)
+isDeclConst = (id <$ declConst) <|> (App (Var "newMutable") <$ operName ":=")
 
 fact :: Parser Expr
 fact = (EValue <$> value)
   <|> T.try (Var <$> var)
   <|> (T.brackets $ T.try (mk2ArgsOper "--->" <*> expr <* T.symbol ",," <*> expr) <|> (EArray <$> T.commaSep expr))
-  <|> (T.braces $ EObject <$> (T.commaSep $ (,,) <$> var <*> isDeclConst <*> expr))
+  <|> (T.braces $ EObject <$> (T.commaSep $ (,) <$> var <*> (isDeclConst <*> expr)))
   <|> (Multi <$> T.parens exprs)
   T.<?> "factor"
 
@@ -132,18 +132,21 @@ parseOr = parseAnd `T.chainl1` opers "|"
 dollar :: Parser Expr
 dollar = parseOr `T.chainr1` opers "$?"
 
-objectChain :: Parser (Expr,String)
-objectChain = (,) <$> fact <* operName "." <*> var
-
 asgn :: Parser Expr
-asgn = T.try (Decl <$> var <*> isDeclConst <*> expr)
-  <|> T.try (Asgn <$> var <* operName "=" <*> expr)
-  <|> T.try (uncurry ObjectAsgn <$> objectChain <* operName "=" <*> expr)
-  <|> dollar
+asgn = dollar `T.chainr1` (mk2ArgsOper name <* operName name)
+  where
+    name = "="
+
+decl :: Parser Expr
+decl = T.try (Decl <$> var <*> (isDeclConst <*> expr))
+  <|> asgn
 
 namespace :: Parser Expr
 namespace = ENamespace <$ reservedId "namespace" <*> var
   <*> T.braces (T.commaSep $ (,) <$> var <* declConst <*> expr)
+
+objectChain :: Parser (Expr,String)
+objectChain = (,) <$> fact <* operName "." <*> var
 
 import' :: Parser Expr
 import' = uncurry Import <$ reservedId "import"
@@ -165,7 +168,7 @@ for = For <$ reservedId "for" <*> optional expr
   <* reservedId "do" <*> expr
 
 expr :: Parser Expr
-expr = namespace <|> import' <|> if' <|> while <|> for <|> asgn
+expr = namespace <|> import' <|> if' <|> while <|> for <|> decl
   T.<?> "expr"
 
 exprs :: Parser [Expr]
