@@ -1,5 +1,6 @@
 module Language.MaroKani
 ( run
+, bench
 , eval
 , eval'
 , parse
@@ -18,6 +19,7 @@ import Control.Monad.Catch
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
 import Control.Concurrent.Async
+import qualified Data.Time.Clock as Time
 
 parseIO :: String -> IO [Expr]
 parseIO code = case parse code of
@@ -48,6 +50,14 @@ run time len code = do
     case len of
       Nothing -> return s
       Just l -> lenLimit l s
+
+bench :: Maybe Int -> Maybe Int -> String -> IO (String, Time.NominalDiffTime)
+bench time len code = do
+  begin <- Time.getCurrentTime
+  s <- run time len code
+  end <- Time.getCurrentTime
+  let t = Time.diffUTCTime end begin
+  return (s,t)
 
 parseIO' :: Maybe Int -> Maybe Int -> String -> IO String
 parseIO' time len code = do

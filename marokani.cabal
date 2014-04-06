@@ -1,6 +1,7 @@
 name:                marokani
 version:             0.0.0.0
-synopsis:            kani chat library
+synopsis:            a kani chat library
+description:         a kani chat library & a programming language
 author:              maro
 category:            Network
 build-type:          Simple
@@ -10,8 +11,12 @@ cabal-version:       >=1.10
 flag debug
   default:     False
 
+source-repository head
+   type: git
+   location: https://github.com/314maro/marokani/
+
 library
-  ghc-options:       -Wall -O2
+  ghc-options:       -Wall
   hs-source-dirs:    src
   default-language:  Haskell2010
 
@@ -50,11 +55,12 @@ library
     parsers >=0.10,
     trifecta >=1.0,
     ansi-wl-pprint >=0.6.6,
-    random >=1.0.1.0
+    random >=1.0.1.0,
+    time >=1.4
 
 executable bot
   main-is:           Bot.hs
-  ghc-options:       -Wall -O2
+  ghc-options:       -Wall
   default-language:  Haskell2010
   hs-source-dirs:    example/
 
@@ -62,11 +68,12 @@ executable bot
     base  >=4.4 && <5,
     marokani,
     exceptions >=0.3,
-    mtl >=2.0.0.0
+    mtl >=2.0.0.0,
+    time >=1.4
 
 executable repl
   main-is:           Repl.hs
-  ghc-options:       -Wall -O2
+  ghc-options:       -Wall
   default-language:  Haskell2010
   hs-source-dirs:    example/
 
