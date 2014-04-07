@@ -20,6 +20,16 @@ apply _ _ (Fun Nothing _ _) _ = throwM $ InternalError "環境が Nothing の関
 apply env o (PrimFun f) x = liftIO $ f (eval env o) x o
 apply _ _ f _ = throwM $ TypeMismatch funName (showType f) "apply"
 
+ifExpr :: (MonadIO m, MonadCatch m) => Env -> Output -> Expr -> m a -> m a -> m a
+ifExpr env o p tru fls = do
+  b <- evalF env o p
+  if isTrue b then tru else fls
+
+whenExpr :: (MonadIO m, MonadCatch m) => Env -> Output -> Expr -> m Value -> m Value
+whenExpr env o p tru = do
+  b <- evalF env o p
+  if isTrue b then tru else return b
+
 evalF :: (MonadIO m, MonadCatch m) => Env -> Output -> Expr -> m Value
 evalF env _ (Var name) = do
   result <- liftIO $ atomically $ do
@@ -34,10 +44,9 @@ evalF env _ (EValue (Fun Nothing name expr)) = do
   env' <- liftIO $ atomically $ readTVar env
   return $ Fun (Just env') name expr
 evalF _ _ (EValue val) = return val
-evalF env o (EArray exprs) = liftM (VArray . V.fromList) $ mapM (evalF env o) exprs
-evalF env o (EObject envList) = do
-  envList' <- mapM (\(name,e) -> (name,) `liftM` evalF env o e) envList
-  return $ VObject $ M.fromList envList'
+evalF env o (EArray exprs) = (VArray . V.fromList) `liftM` mapM (evalF env o) exprs
+evalF env o (EObject envList) = (VObject . M.fromList) `liftM`
+  mapM (\(name,e) -> (name,) `liftM` evalF env o e) envList
 evalF env o (App e1 e2) = do
   v1 <- evalF env o e1
   v2 <- evalF env o e2
@@ -67,25 +76,20 @@ evalF env o (Import exprM name) = do
     Nothing -> throwM $ UnknownName name place
     Just x -> modify x
   return $ VBool False
-evalF env o (If cond tru fls) = do
-  cond' <- evalF env o cond
+evalF env o (If p tru fls) = do
   let tru' = evalF env o tru
   let fls' = maybe (return $ VBool False) (evalF env o) fls
-  if isTrue cond' then tru' else fls'
+  ifExpr env o p tru' fls'
 evalF env o (While p body) = do
-  let loop = do
-        b <- evalF env o p
-        if isTrue b
-          then evalF env o body >> loop
-          else return b
+  let loop = whenExpr env o p (evalF env o body >> loop)
   loop
 evalF env o (For ini p inc body) = do
   let evalFMaybe = maybe (return ()) (\expr -> evalF env o expr >> return ())
   evalFMaybe ini
-  let loop = let loop' = evalF env o body >> evalFMaybe inc >> loop in
-        case p of
-          Nothing -> loop'
-          Just p' -> evalF env o p' >>= \b -> if isTrue b then loop' else return b
+  let loop1 = evalF env o body >> evalFMaybe inc >> loop
+      loop = case p of
+        Nothing -> loop1
+        Just p' -> whenExpr env o p' loop1
   loop
 evalF env o (ObjectRef obj name) = do
   let place = "objectRef"
