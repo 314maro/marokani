@@ -9,7 +9,7 @@ main = do
     then return ()
     else do
       let f :: MaroKaniException -> IO String
-          f = return . show
+          f = return . showColor
       r <- catch (run Nothing Nothing s) f
       putStrLn r
       main

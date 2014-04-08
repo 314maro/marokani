@@ -22,6 +22,7 @@ module Language.MaroKani.Types
 , typeOr
 , Expr(..)
 , MaroKaniException(..)
+, showColor
 ) where
 
 import Control.Monad.Trans
@@ -165,3 +166,6 @@ instance Show MaroKaniException where
   show TimeOver = "時間かかりすぎ"
   show (Default s) = "エラー: " ++ s
 instance Exception MaroKaniException where
+showColor :: MaroKaniException -> String
+showColor (ParserError doc) = show doc
+showColor e = show e

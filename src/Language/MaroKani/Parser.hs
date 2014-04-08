@@ -172,7 +172,7 @@ expr = namespace <|> import' <|> if' <|> while <|> for <|> decl
   T.<?> "expr"
 
 exprs :: Parser [Expr]
-exprs = optional T.someSpace *> T.sepEndBy expr T.semi T.<?> "exprs"
+exprs = T.whiteSpace *> T.sepEndBy expr T.semi T.<?> "exprs"
 
 parse :: String -> T.Result [Expr]
-parse s = T.parseString (runParser exprs) mempty s
+parse s = T.parseString (runParser $ exprs <* T.eof) mempty s

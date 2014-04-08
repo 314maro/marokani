@@ -7,6 +7,7 @@ module Language.MaroKani
 , parseIO
 , parseIO'
 , MaroKaniException(..)
+, showColor
 ) where
 
 import Language.MaroKani.Types
@@ -65,3 +66,4 @@ parseIO' time len code = do
   case len of
     Nothing -> return $ show s
     Just l -> lenLimit l $ show s
+
