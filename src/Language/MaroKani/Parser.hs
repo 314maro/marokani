@@ -1,9 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, TupleSections #-}
 
-module Language.MaroKani.Parser
-( parse
-, T.Result(..)
-) where
+module Language.MaroKani.Parser ( parseIO ) where
 
 import Language.MaroKani.Types
 
@@ -12,6 +9,9 @@ import qualified Text.Trifecta as T
 import qualified Text.Parser.Token.Style as TS
 import qualified Data.HashSet as HashSet
 import Data.Monoid (mempty)
+
+import Control.Monad.Trans (MonadIO)
+import Control.Monad.Catch (MonadCatch, throwM)
 
 cStyle :: TS.CommentStyle
 cStyle = TS.CommentStyle "/*" "*/" "" True
@@ -176,3 +176,8 @@ exprs = T.whiteSpace *> T.sepEndBy expr T.semi T.<?> "exprs"
 
 parse :: String -> T.Result [Expr]
 parse s = T.parseString (runParser $ exprs <* T.eof) mempty s
+
+parseIO :: (MonadIO m, MonadCatch m) => String -> m [Expr]
+parseIO code = case parse code of
+  T.Failure doc -> throwM $ ParserError doc
+  T.Success es -> return es

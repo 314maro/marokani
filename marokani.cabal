@@ -8,6 +8,9 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
+data-dir:          lang
+data-files:        std.marokani
+
 flag debug
   default:     False
 
@@ -33,6 +36,7 @@ library
     Language.MaroKani.Parser
     Language.MaroKani.Prim
     Language.MaroKani.Types
+    Paths_marokani
 
   default-extensions:
     FlexibleContexts,

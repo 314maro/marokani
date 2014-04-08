@@ -2,7 +2,7 @@
 
 module Language.MaroKani.Types
 ( Env
-, Env'
+, EnvC
 , Output
 , appendOutput
 , Value(..)
@@ -35,8 +35,8 @@ import qualified Data.Map as M
 import qualified Data.Vector as V
 import Text.PrettyPrint.ANSI.Leijen (Doc, plain)
 
-type Env' = M.Map String Value
-type Env = TVar Env'
+type EnvC = M.Map String Value
+type Env = TVar EnvC
 
 type Output = TVar (String -> String)
 
@@ -49,8 +49,8 @@ data Value
   | VString String
   | VBool Bool
   | VArray (V.Vector Value)
-  | VObject Env'
-  | Fun (Maybe Env') String [Expr]
+  | VObject EnvC
+  | Fun (Maybe EnvC) String [Expr]
   | PrimFun (([Expr] -> IO Value) -> Value -> Output -> IO Value)
   | VAsync (Async Value)
   | Mutable (TVar Value)
@@ -148,7 +148,7 @@ data MaroKaniException
   = TypeMismatch String String String
   | UnknownName String String
   | ParserError Doc
-  | InternalError String
+  | InternalError SomeException
   | IndexOutOfBounds (V.Vector Value) Int
   | StringTooLong
   | TimeOver
@@ -156,11 +156,13 @@ data MaroKaniException
   deriving (Typeable)
 showPlace :: String -> String
 showPlace s = " 場所: " ++ s
+showInternal :: String -> String
+showInternal = ("内部のエラー: " ++)
 instance Show MaroKaniException where
   show (TypeMismatch t1 t2 p) = "型エラー: " ++ t1 ++ " のはずが " ++ t2 ++ showPlace p
   show (UnknownName name p) = "知らない名前: " ++ name ++ showPlace p
   show (ParserError doc) = show $ plain doc
-  show (InternalError s) = "内部のエラー: " ++ s
+  show (InternalError e) = showInternal $ show e
   show (IndexOutOfBounds arr i) = "インデックスでかすぎ: " ++ show (VArray arr) ++ ", " ++ show i
   show StringTooLong = "出力長すぎ"
   show TimeOver = "時間かかりすぎ"
@@ -168,4 +170,5 @@ instance Show MaroKaniException where
 instance Exception MaroKaniException where
 showColor :: MaroKaniException -> String
 showColor (ParserError doc) = show doc
+showColor (InternalError e) = showInternal $ maybe (show e) showColor $ fromException e
 showColor e = show e

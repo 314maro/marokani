@@ -3,7 +3,6 @@ module Language.MaroKani
 , bench
 , eval
 , eval'
-, parse
 , parseIO
 , parseIO'
 , MaroKaniException(..)
@@ -21,11 +20,6 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
 import Control.Concurrent.Async
 import qualified Data.Time.Clock as Time
-
-parseIO :: String -> IO [Expr]
-parseIO code = case parse code of
-  Failure doc -> throwM $ ParserError doc
-  Success es -> return es
 
 lenLimit :: Int -> String -> IO String
 lenLimit i _ | i < 0 = throwM StringTooLong
@@ -66,4 +60,3 @@ parseIO' time len code = do
   case len of
     Nothing -> return $ show s
     Just l -> lenLimit l $ show s
-

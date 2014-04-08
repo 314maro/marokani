@@ -5,6 +5,7 @@ module Language.MaroKani.Eval (eval, eval') where
 import Language.MaroKani.Types
 import Language.MaroKani.Prim
 import Language.MaroKani.Parser
+
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Catch
@@ -13,10 +14,10 @@ import qualified Data.Map as M
 import qualified Data.Vector as V
 
 apply :: (MonadIO m, MonadCatch m) => Env -> Output -> Value -> Value -> m Value
-apply _ o (Fun (Just fenv') name body) x = do
-  fenv <- liftIO $ atomically $ newTVar $ M.insert name x fenv'
+apply _ o (Fun (Just fenvc) name body) x = do
+  fenv <- liftIO $ atomically $ newTVar $ M.insert name x fenvc
   eval fenv o body
-apply _ _ (Fun Nothing _ _) _ = throwM $ InternalError "環境が Nothing の関数"
+apply _ _ (Fun Nothing _ _) _ = throwM $ InternalError $ toException $ Default "環境が Nothing の関数"
 apply env o (PrimFun f) x = liftIO $ f (eval env o) x o
 apply _ _ f _ = throwM $ TypeMismatch funName (showType f) "apply"
 
@@ -33,16 +34,16 @@ whenExpr env o p tru = do
 evalF :: (MonadIO m, MonadCatch m) => Env -> Output -> Expr -> m Value
 evalF env _ (Var name) = do
   result <- liftIO $ atomically $ do
-    env' <- readTVar env
-    case M.lookup name env' of
+    envc <- readTVar env
+    case M.lookup name envc of
       Nothing -> return Nothing
       Just val -> return $ Just val
   case result of
     Nothing -> throwM $ UnknownName name "ref"
     Just val -> return val
 evalF env _ (EValue (Fun Nothing name expr)) = do
-  env' <- liftIO $ atomically $ readTVar env
-  return $ Fun (Just env') name expr
+  envc <- liftIO $ atomically $ readTVar env
+  return $ Fun (Just envc) name expr
 evalF _ _ (EValue val) = return val
 evalF env o (EArray exprs) = (VArray . V.fromList) `liftM` mapM (evalF env o) exprs
 evalF env o (EObject envList) = (VObject . M.fromList) `liftM`
@@ -110,6 +111,5 @@ eval env o exprs = foldM (\_ e -> evalF env o e) (VBool False) exprs
 
 eval' :: (MonadIO m, MonadCatch m) => Env -> Output -> [Expr] -> m Value
 eval' env o exprs = do
-  let Success std' = parse std
-  _ <- catchAll (eval env o std') (throwM . InternalError . show)
+  _ <- catchAll (std >>= parseIO >>= eval env o) (throwM . InternalError)
   eval env o exprs

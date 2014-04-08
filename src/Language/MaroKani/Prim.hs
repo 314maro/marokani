@@ -1,6 +1,9 @@
-module Language.MaroKani.Prim (newEnv, std) where
+module Language.MaroKani.Prim (newEnv, newEnv', std) where
 
 import Language.MaroKani.Types
+
+import Paths_marokani
+
 import Data.Traversable (traverse)
 import Control.Monad.Trans
 import Control.Monad.Catch
@@ -11,6 +14,7 @@ import Control.Concurrent.Async
 import qualified Data.Map as M
 import qualified Data.Vector as V
 import qualified System.Random as Rand
+foreign import ccall unsafe "math.h gamma" gamma :: Double -> Double
 
 mk1Arg :: (String -> Value -> IO Value) -> String -> (String,Value)
 mk1Arg f name = (name, PrimFun $ \_ v _ -> f name v)
@@ -157,6 +161,11 @@ primTan _ (VDouble d) = return $ VDouble $ tan d
 primTan _ (VInt i) = return $ VDouble $ tan $ fromIntegral i
 primTan name x = throwM $ TypeMismatch doubleName (showType x) name
 
+primGamma :: String -> Value -> IO Value
+primGamma _ (VDouble d) = return $ VDouble $ gamma d
+primGamma _ (VInt i) = return $ VDouble $ gamma $ fromIntegral i
+primGamma name x = throwM $ TypeMismatch doubleName (showType x) name
+
 primFloor :: String -> Value -> IO Value
 primFloor _ (VDouble d) = return $ VInt $ floor d
 primFloor _ (VInt i) = return $ VInt i
@@ -177,7 +186,6 @@ primsList =
   [ ("true", VBool True)
   , ("false", VBool False)
   , ("pi", VDouble pi)
-  , ("π", VDouble pi)
   , ("print", primPrintV)
   , mk1Arg' primAsync "async"
   , mk1Arg primWait "wait"
@@ -190,6 +198,7 @@ primsList =
   , mk1Arg primSin "sin"
   , mk1Arg primCos "cos"
   , mk1Arg primTan "tan"
+  , mk1Arg primGamma "gamma"
   , mk1Arg primUnaryPlus "[+]"
   , mk1Arg primUnaryMinus "[-]"
   , mk2Args primAdd "(+)"
@@ -216,13 +225,8 @@ primsList =
 newEnv :: MonadIO m => m Env
 newEnv = liftIO $ atomically $ newTVar $ M.fromList primsList
 
-std :: String
-std
-  =  "If ::= \\b x y {if b then x else y};"
-  ++ "(<<) ::= \\f g x {f (g x)};"
-  ++ "(>>) ::= \\f g x {g (f x)};"
-  ++ "($) ::= \\f x {f x};"
-  ++ "(&&) ::= \\x y {if x then y else x};"
-  ++ "(||) ::= \\x y {if x then x else y};"
-  ++ "[!] ::= \\x {if x then false else true};"
-  ++ "fix ::= \\f { \\x{f(\\y{x x y})} \\x{f(\\y{x x y})} };"
+newEnv' :: MonadIO m => EnvC -> m Env
+newEnv' e = liftIO $ atomically $ newTVar $ e `M.union` M.fromList primsList
+
+std :: MonadIO m => m String
+std = liftIO $ getDataFileName "std.marokani" >>= readFile
