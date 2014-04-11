@@ -1,4 +1,4 @@
-marokani
+marokani [![Build Status](https://travis-ci.org/314maro/marokani.svg?branch=master)](https://travis-ci.org/314maro/marokani)
 ========
 
 かにチャット
