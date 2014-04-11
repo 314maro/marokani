@@ -1,10 +1,8 @@
 module Language.MaroKani
 ( run
+, run'
 , bench
-, eval
-, eval'
-, parseIO
-, parseIO'
+, parse
 , MaroKaniException(..)
 , showColor
 ) where
@@ -31,15 +29,21 @@ timeLimitMaybe Nothing m = m
 timeLimitMaybe (Just t) m = do
   result <- threadDelay (t*1000*1000) `race` m
   case result of
-    Left _ -> throwM TimeOver
+    Left _ -> throwM $ TimeOver t
     Right r -> return r
 
 run :: Maybe Int -> Maybe Int -> String -> IO String
-run time len code = do
+run = runF newEnv
+
+run' :: EnvC -> Maybe Int -> Maybe Int -> String -> IO String
+run' envc = runF (newEnv' envc)
+
+runF :: IO Env -> Maybe Int -> Maybe Int -> String -> IO String
+runF ioenv time len code = do
   o <- atomically $ newTVar id
   timeLimitMaybe time $ do
     exprs <- parseIO code
-    env <- newEnv
+    env <- ioenv
     _ <- eval' env o exprs
     s <- atomically $ readTVar o <*> pure ""
     case len of
@@ -54,8 +58,8 @@ bench time len code = do
   let t = Time.diffUTCTime end begin
   return (s,t)
 
-parseIO' :: Maybe Int -> Maybe Int -> String -> IO String
-parseIO' time len code = do
+parse :: Maybe Int -> Maybe Int -> String -> IO String
+parse time len code = do
   s <- timeLimitMaybe time $ parseIO code
   case len of
     Nothing -> return $ show s

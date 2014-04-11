@@ -17,16 +17,16 @@ import qualified System.Random as Rand
 foreign import ccall unsafe "math.h gamma" gamma :: Double -> Double
 
 mk1Arg :: (String -> Value -> IO Value) -> String -> (String,Value)
-mk1Arg f name = (name, PrimFun $ \_ v _ -> f name v)
+mk1Arg f name = (name, PrimFun $ \_ _ v _ -> f name v)
 
 mk1Arg' :: (String -> ([Expr] -> IO Value) -> Value -> IO Value) -> String -> (String,Value)
-mk1Arg' f name = (name, PrimFun $ \ev v _ -> f name ev v)
+mk1Arg' f name = (name, PrimFun $ \_ ev v _ -> f name ev v)
 
 mk2Args :: (String -> Value -> Value -> IO Value) -> String -> (String,Value)
-mk2Args f name = (name, PrimFun $ \_ x _ -> return $ PrimFun $ \_ y _ -> f name x y)
+mk2Args f name = (name, PrimFun $ \_ _ x _ -> return $ PrimFun $ \_ _ y _ -> f name x y)
 
 mk2Args' :: (String -> ([Expr] -> IO Value) -> Value -> Value -> IO Value) -> String -> (String,Value)
-mk2Args' f name = (name, PrimFun $ \_ x _ -> return $ PrimFun $ \ev y _ -> f name ev x y)
+mk2Args' f name = (name, PrimFun $ \_ _ x _ -> return $ PrimFun $ \_ ev y _ -> f name ev x y)
 
 calcNum :: (Integer -> Integer -> ti) -> (Double -> Double -> td)
   -> (ti -> a) -> (td -> a) -> Value -> Value -> String -> IO a
@@ -123,19 +123,25 @@ primDelay :: String -> Value -> IO Value
 primDelay _ (VInt x) = threadDelay (fromIntegral x) >> return (VBool False)
 primDelay name x = throwM $ TypeMismatch intName (showType x) name
 
+primGetEnv :: EnvC -> IO Value
+primGetEnv envc = return $ VObject envc
+
+primGetEnvV :: Value
+primGetEnvV = PrimFun $ \envc _ _ _ -> primGetEnv envc
+
 primPrint :: Value -> Output -> IO Value
 primPrint x o = do
   appendOutput o $ show x
   return primPrintV
 
 primPrintV :: Value
-primPrintV = PrimFun $ \_ -> primPrint
+primPrintV = PrimFun $ \_ _ -> primPrint
 
 primTostr :: String -> Value -> IO Value
 primTostr _ x = return $ VString $ show x
 
 primShowFun :: String -> Value -> IO Value
-primShowFun _ (Fun _ name es) = return $ VString $ "\\" ++ name ++ show es
+primShowFun _ (VFun _ name es) = return $ VString $ "\\" ++ name ++ show es
 primShowFun name f = throwM $ TypeMismatch funName (showType f) name
 
 primRandInt :: String -> Value -> IO Value
@@ -186,6 +192,7 @@ primsList =
   [ ("true", VBool True)
   , ("false", VBool False)
   , ("pi", VDouble pi)
+  , ("getEnv", primGetEnvV)
   , ("print", primPrintV)
   , mk1Arg' primAsync "async"
   , mk1Arg primWait "wait"

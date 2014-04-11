@@ -50,8 +50,8 @@ data Value
   | VBool Bool
   | VArray (V.Vector Value)
   | VObject EnvC
-  | Fun (Maybe EnvC) String [Expr]
-  | PrimFun (([Expr] -> IO Value) -> Value -> Output -> IO Value)
+  | VFun EnvC String [Expr]
+  | PrimFun (EnvC -> ([Expr] -> IO Value) -> Value -> Output -> IO Value)
   | VAsync (Async Value)
   | Mutable (TVar Value)
 instance Show Value where
@@ -67,7 +67,7 @@ instance Show Value where
   show (VObject env) = "{"
     ++ (intercalate "," $ map (\(k,v) -> k ++ "::=" ++ show v) $ M.assocs env)
     ++ "}"
-  show (Fun _ _ _) = "<<fun>>"
+  show (VFun _ _ _) = "<<fun>>"
   show (PrimFun _) = "<<prim-fun>>"
   show (VAsync _) = "<<async>>"
   show (Mutable _) = "<<mutable>>"
@@ -78,8 +78,8 @@ instance Eq Value where
   VBool x == VBool y = x == y
   VArray x == VArray y = x == y
   _ == _ = False
-  Fun _ _ _ /= _ = False
-  _ /= Fun _ _ _ = False
+  VFun _ _ _ /= _ = False
+  _ /= VFun _ _ _ = False
   PrimFun _ /= _ = False
   _ /= PrimFun _ = False
   VObject _ /= _ = False
@@ -99,7 +99,7 @@ showType (VString _) = stringName
 showType (VBool _) = boolName
 showType (VArray _) = arrayName
 showType (VObject _) = objectName
-showType (Fun _ _ _) = funName
+showType (VFun _ _ _) = funName
 showType (PrimFun _) = primFunName
 showType (VAsync _) = asyncName
 showType (Mutable _) = mutableName
@@ -131,6 +131,7 @@ typeOr x y = x ++ " か " ++ y
 data Expr
   = Var String
   | EValue Value
+  | EFun String [String] [Expr]
   | EArray [Expr]
   | EObject [(String,Expr)]
   | App Expr Expr
@@ -151,7 +152,7 @@ data MaroKaniException
   | InternalError SomeException
   | IndexOutOfBounds (V.Vector Value) Int
   | StringTooLong
-  | TimeOver
+  | TimeOver Int
   | Default String
   deriving (Typeable)
 showPlace :: String -> String
@@ -165,7 +166,7 @@ instance Show MaroKaniException where
   show (InternalError e) = showInternal $ show e
   show (IndexOutOfBounds arr i) = "インデックスでかすぎ: " ++ show (VArray arr) ++ ", " ++ show i
   show StringTooLong = "出力長すぎ"
-  show TimeOver = "時間かかりすぎ"
+  show (TimeOver t) = "時間かかりすぎ: " ++ shows t "s"
   show (Default s) = "エラー: " ++ s
 instance Exception MaroKaniException where
 showColor :: MaroKaniException -> String

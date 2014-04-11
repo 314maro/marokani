@@ -52,17 +52,6 @@ var = T.ident idStyle
 reservedId :: String -> Parser String
 reservedId s = T.token $ T.string s <* T.notFollowedBy (T.ident idStyle :: Parser String)
 
-value :: Parser Value
-value = (either VInt VDouble <$> T.naturalOrDouble)
-  <|> (VString <$> T.stringLiteral)
-  <|> (VBool False <$ T.symbol "()")
-  <|> (mkFun <$ T.symbol "\\" <*> many (var <|> reservedId "_") <*> T.braces exprs)
-  T.<?> "value"
-  where
-    mkFun [] es = Fun Nothing "_" es
-    mkFun [v] es = Fun Nothing v es
-    mkFun (v:vs) es = Fun Nothing v [EValue $ mkFun vs es]
-
 mk2ArgsOper :: String -> Parser (Expr -> Expr -> Expr)
 mk2ArgsOper name = return $ \x y -> Var (addParens name) `App` x `App` y
 
@@ -89,13 +78,22 @@ declConst = operName "::="
 isDeclConst :: Parser (Expr -> Expr)
 isDeclConst = (id <$ declConst) <|> (App (Var "newMutable") <$ operName ":=")
 
+value :: Parser Value
+value = (either VInt VDouble <$> T.naturalOrDouble)
+  <|> (VString <$> T.stringLiteral)
+  <|> (VBool False <$ T.symbol "()")
+  T.<?> "value"
+
 fact :: Parser Expr
 fact = (EValue <$> value)
   <|> T.try (Var <$> var)
   <|> (T.brackets $ T.try (mk2ArgsOper "--->" <*> expr <* T.symbol ",," <*> expr) <|> (EArray <$> T.commaSep expr))
   <|> (T.braces $ EObject <$> (T.commaSep $ (,) <$> var <*> (isDeclConst <*> expr)))
+  <|> (EFun <$ T.symbol "\\" <*> var' <*> many var' <*> T.braces exprs)
   <|> (Multi <$> T.parens exprs)
   T.<?> "factor"
+  where
+    var' = var <|> reservedId "_"
 
 objectRef :: Parser Expr
 objectRef = foldl ObjectRef <$> fact <*> many (operName "." *> var)

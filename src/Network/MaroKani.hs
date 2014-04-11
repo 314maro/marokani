@@ -46,7 +46,7 @@ type Kani = ReaderT (KaniConfig, TVar KaniRequest) IO
 connection :: (KaniConfig -> KaniRequest -> IO KaniResponse) -> Kani KaniResponse
 connection con = ReaderT $ \(config,reqv) -> do
   req <- atomically $ readTVar reqv
-  res <- catchAll (con config req) (\e -> print e >> return undefined)
+  res <- con config req
   atomically $ modifyTVar reqv (K.updateReq res)
   return res
 

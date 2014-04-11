@@ -14,11 +14,12 @@ import qualified Data.Map as M
 import qualified Data.Vector as V
 
 apply :: (MonadIO m, MonadCatch m) => Env -> Output -> Value -> Value -> m Value
-apply _ o (Fun (Just fenvc) name body) x = do
+apply _ o (VFun fenvc name body) x = do
   fenv <- liftIO $ atomically $ newTVar $ M.insert name x fenvc
   eval fenv o body
-apply _ _ (Fun Nothing _ _) _ = throwM $ InternalError $ toException $ Default "環境が Nothing の関数"
-apply env o (PrimFun f) x = liftIO $ f (eval env o) x o
+apply env o (PrimFun f) x = do
+  envc <- liftIO $ atomically $ readTVar env
+  liftIO $ f envc (eval env o) x o
 apply _ _ f _ = throwM $ TypeMismatch funName (showType f) "apply"
 
 ifExpr :: (MonadIO m, MonadCatch m) => Env -> Output -> Expr -> m a -> m a -> m a
@@ -31,20 +32,25 @@ whenExpr env o p tru = do
   b <- evalF env o p
   if isTrue b then tru else return b
 
-evalF :: (MonadIO m, MonadCatch m) => Env -> Output -> Expr -> m Value
-evalF env _ (Var name) = do
-  result <- liftIO $ atomically $ do
-    envc <- readTVar env
-    case M.lookup name envc of
-      Nothing -> return Nothing
-      Just val -> return $ Just val
-  case result of
-    Nothing -> throwM $ UnknownName name "ref"
-    Just val -> return val
-evalF env _ (EValue (Fun Nothing name expr)) = do
+lookupVar :: (MonadIO m, MonadCatch m) => Env -> String -> String -> m Value
+lookupVar env name place = do
   envc <- liftIO $ atomically $ readTVar env
-  return $ Fun (Just envc) name expr
+  lookupVar' envc name place
+
+lookupVar' :: (MonadCatch m) => EnvC -> String -> String -> m Value
+lookupVar' envc name place = do
+  case M.lookup name envc of
+    Nothing -> throwM $ UnknownName name place
+    Just val -> return $ val
+
+evalF :: (MonadIO m, MonadCatch m) => Env -> Output -> Expr -> m Value
+evalF env _ (Var name) = lookupVar env name "ref"
 evalF _ _ (EValue val) = return val
+evalF env _ (EFun name0 names exprs) = do
+  envc <- liftIO $ atomically $ readTVar env
+  let body [] = exprs
+      body (name1:names') = [EFun name1 names' exprs]
+  return $ VFun envc name0 $ body names
 evalF env o (EArray exprs) = (VArray . V.fromList) `liftM` mapM (evalF env o) exprs
 evalF env o (EObject envList) = (VObject . M.fromList) `liftM`
   mapM (\(name,e) -> (name,) `liftM` evalF env o e) envList
@@ -64,18 +70,17 @@ evalF env o (ENamespace name decls) = do
   return namespace
 evalF env o (Import exprM name) = do
   let place = "import"
-  objEnv <- case exprM of
+  objEnvc <- case exprM of
     Nothing -> liftIO $ atomically $ readTVar env
     Just expr -> do
       v <- evalF env o expr
       case v of
         VObject obj -> return obj
         _ -> throwM $ TypeMismatch namespaceName (showType v) place
-  let modify (VObject obj) = liftIO $ atomically $ modifyTVar env (M.union obj)
-      modify x = throwM $ TypeMismatch namespaceName (showType x) place
-  case M.lookup name objEnv of
-    Nothing -> throwM $ UnknownName name place
-    Just x -> modify x
+  v <- lookupVar' objEnvc name place
+  case v of
+    VObject obj -> liftIO $ atomically $ modifyTVar env (M.union obj)
+    x -> throwM $ TypeMismatch namespaceName (showType x) place
   return $ VBool False
 evalF env o (If p tru fls) = do
   let tru' = evalF env o tru
@@ -92,15 +97,12 @@ evalF env o (For ini p inc body) = do
         Nothing -> loop1
         Just p' -> whenExpr env o p' loop1
   loop
-evalF env o (ObjectRef obj name) = do
+evalF env o (ObjectRef objE name) = do
   let place = "objectRef"
-  obj' <- evalF env o obj
-  case obj' of
-    VObject objEnv -> do
-      case M.lookup name objEnv of
-        Nothing -> throwM $ UnknownName name place
-        Just val -> return val
-    _ -> throwM $ TypeMismatch objectName (showType obj') place
+  objV <- evalF env o objE
+  case objV of
+    VObject objEnvc -> lookupVar' objEnvc name place
+    _ -> throwM $ TypeMismatch objectName (showType objV) place
 evalF env o (Decl name expr) = do
   val <- evalF env o expr
   liftIO $ atomically $ modifyTVar env (M.insert name val)
