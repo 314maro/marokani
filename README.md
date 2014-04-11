@@ -72,3 +72,7 @@ if
 名前空間(実態はオブジェクト)
 
     namespace hage { kami ::= 0 }; print hage.kami; import hage; print kami
+
+環境
+
+    x ::= 16; print (getEnv()).x
