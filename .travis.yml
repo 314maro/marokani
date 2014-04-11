@@ -1,0 +1,7 @@
+language: haskell
+ghc: "7.6"
+install: cabal install --only-dependencies
+script: cabal configure --enable-tests && cabal test
+
+notifications:
+  emails: false
