@@ -208,10 +208,14 @@ instance FromJSON KaniAnnounce where
 data KaniConfig = KaniConfig
   { kaniProxy :: Maybe Proxy
   , kaniFun :: KaniRequest -> KaniRequest
+  , kaniManager :: Manager
   }
 
-defaultConfig :: KaniConfig
-defaultConfig = KaniConfig
-  { kaniProxy = Nothing
-  , kaniFun = id
-  }
+defaultConfig :: IO KaniConfig
+defaultConfig = do
+  man <- newManager conduitManagerSettings
+  return $ KaniConfig
+    { kaniProxy = Nothing
+    , kaniFun = id
+    , kaniManager = man
+    }

@@ -9,6 +9,7 @@ module Network.MaroKani.Internal
 , deleteAll
 , update
 , updateReq
+, closeKani
 ) where
 
 import Network.MaroKani.Types
@@ -30,7 +31,7 @@ kani mode config req = do
   httpReq <- parseUrl $ kaniQuery kaniURL req'
   let httpReq' = httpReq
         { responseTimeout = Just $ 60*1000*1000, proxy = kaniProxy config }
-  res <- withManager $ httpLbs httpReq'
+  res <- httpLbs httpReq' $ kaniManager config
   let str = responseBody res
   maybe (error $ "JSON: " ++ B.unpack str) return $ decode str
 
@@ -73,3 +74,6 @@ updateReq res req = req
     safeLast [x] = Just x
     safeLast (_:xs) = safeLast xs
     newLogno = resLog res >>= safeLast >>= \x -> return $ logLogno x + 1
+
+closeKani :: KaniConfig -> IO ()
+closeKani config = closeManager $ kaniManager config

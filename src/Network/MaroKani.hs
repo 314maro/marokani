@@ -113,10 +113,14 @@ update_ = void update
 runKani :: KaniConfig -> KaniRequest -> Kani a -> IO a
 runKani config request m = do
   reqv <- atomically $ newTVar request
-  runReaderT m (config,reqv)
+  res <- runReaderT m (config,reqv)
+  K.closeKani config -- FIXME: 必ず呼ぶように
+  return res
 
 runKani' :: KaniRequest -> Kani a -> IO a
-runKani' req m = runKani defaultConfig req m
+runKani' req m = do
+  config <- defaultConfig
+  runKani config req m
 
 kaniIO :: Kani a -> Kani (IO a)
 kaniIO act = do

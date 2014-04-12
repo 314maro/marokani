@@ -60,7 +60,7 @@ reacts = mkReacts actions
 
 bot :: String -> String -> String -> IO ()
 bot name roomId trip = do
-  let config = defaultConfig
+  config <- defaultConfig
   let req = (defaultRequest name roomId) { reqTrip = Just trip }
   runKani config req $ flip finally exit_ $ do
     res <- newId
@@ -73,7 +73,7 @@ bot name roomId trip = do
 
 botId :: String -> String -> String -> String -> IO ()
 botId name roomId trip sId = do
-  let config = defaultConfig
+  config <- defaultConfig
   let req = (defaultRequest name roomId) { reqTrip = Just trip, reqId = Just sId }
   runKani config req $ flip finally exit_ $ do
     liftIO $ putStrLn "start.."
