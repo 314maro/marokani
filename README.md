@@ -76,3 +76,7 @@ if
 環境
 
     x ::= 16; print (getEnv()).x
+
+Botの操作 (example/Bot.hs)
+
+    enter (); exit ()
