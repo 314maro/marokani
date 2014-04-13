@@ -5,6 +5,8 @@ module Language.MaroKani
 , parse
 , MaroKaniException(..)
 , showColor
+, M.fromList
+, Value(..)
 ) where
 
 import Language.MaroKani.Types
@@ -18,6 +20,7 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
 import Control.Concurrent.Async
 import qualified Data.Time.Clock as Time
+import qualified Data.Map as M
 
 lenLimit :: Int -> String -> IO String
 lenLimit i _ | i < 0 = throwM StringTooLong

@@ -11,8 +11,13 @@ import Control.Monad.Catch
 import Control.Applicative
 import System.IO (hFlush,stdout)
 
--- kaniLib :: Kani EnvC
--- kaniLib = []
+kaniLib = do
+  enterIO <- kaniIO enter_
+  exitIO <- kaniIO exit_
+  return $ MaroKani.fromList
+    [ ("enter", MaroKani.PrimFun $ \_ _ _ _ -> enterIO >> return (MaroKani.VBool False))
+    , ("exit", MaroKani.PrimFun $ \_ _ _ _ -> exitIO >> return (MaroKani.VBool False))
+    ]
 
 actions :: [Script]
 actions =
@@ -20,7 +25,8 @@ actions =
     let s = either to2byteSpace (("res: " ++) . show) $ Calc.run code
     say_ s
   , colonsEnd (not <$> isSelf) everyone ["m","m"] $ \code -> do
-    s <- liftIO $ handle tostr (MaroKani.run (Just 2) (Just 512) code)
+    lib <- kaniLib
+    s <- liftIO $ handle tostr (MaroKani.run' lib (Just 2) (Just 512) code)
     putAndSay $ ifEmpty s
   , colonsEnd (not <$> isSelf) everyone ["m","parse"] $ \code -> do
     s <- liftIO $ handle tostr (show <$> MaroKani.parse (Just 2) (Just 512) code)
