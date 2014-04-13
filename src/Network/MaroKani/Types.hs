@@ -1,17 +1,17 @@
 module Network.MaroKani.Types
-( KaniMode(..)
-, KaniRequest(..)
-, defaultRequest
-, kaniQuery
-, kaniQuery'
-, KaniResponse(..)
-, KaniLog(..)
-, Memdata(..)
-, KaniAnnounce(..)
-, KaniConfig(..)
-, defaultConfig
-, Proxy(..)
-) where
+  ( KaniMode(..)
+  , KaniRequest(..)
+  , defaultRequest
+  , kaniQuery
+  , kaniQuery'
+  , KaniResponse(..)
+  , KaniLog(..)
+  , Memdata(..)
+  , KaniAnnounce(..)
+  , KaniConfig(..)
+  , defaultConfig
+  , Proxy(..)
+  ) where
 
 import Control.Applicative
 import Network.HTTP (urlEncode)

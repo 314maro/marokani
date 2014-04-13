@@ -1,6 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, TupleSections #-}
 
-module Language.MaroKani.Parser ( parseIO ) where
+module Language.MaroKani.Parser
+  ( parseIO
+  ) where
 
 import Language.MaroKani.Types
 

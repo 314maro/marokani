@@ -27,6 +27,7 @@ library
     Network.MaroKani
     Network.MaroKani.Bot
     Language.MaroKani
+    Language.MaroKani.Utils
     Language.Calc
 
   other-modules:

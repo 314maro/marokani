@@ -4,19 +4,31 @@ import Network.MaroKani
 import Network.MaroKani.Bot
 import qualified Language.Calc as Calc
 import qualified Language.MaroKani as MaroKani
+import qualified Language.MaroKani.Utils as Utils
 
-import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Catch
 import Control.Applicative
-import System.IO (hFlush,stdout)
+import System.Environment (getArgs)
 
+kaniLib :: Kani Utils.EnvC
 kaniLib = do
   enterIO <- kaniIO enter_
   exitIO <- kaniIO exit_
-  return $ MaroKani.fromList
-    [ ("enter", MaroKani.PrimFun $ \_ _ _ _ -> enterIO >> return (MaroKani.VBool False))
-    , ("exit", MaroKani.PrimFun $ \_ _ _ _ -> exitIO >> return (MaroKani.VBool False))
+  let updateNameF name v = liftIO (Utils.value2string name v) >>= updateName >> exit_ >> enter_
+  updateNameIO <- kaniIO2 updateNameF
+  let updateIconF name v = liftIO (Utils.value2string name v) >>= updateIcon >> update_
+  updateIconIO <- kaniIO2 updateIconF
+  deleteAllIO <- kaniIO deleteAll_
+  let deleteF name v = liftIO (Utils.value2integer name v) >>= delete_
+  deleteIO <- kaniIO2 deleteF
+  return $ Utils.fromList
+    [ Utils.mkIOValueVoid (const enterIO) "enter"
+    , Utils.mkIOValueVoid (const exitIO) "exit"
+    , Utils.mk1ArgVoid updateNameIO "update_name"
+    , Utils.mk1ArgVoid updateIconIO "update_icon"
+    , Utils.mkIOValueVoid (const deleteAllIO) "deleteAll"
+    , Utils.mk1ArgVoid deleteIO "delete"
     ]
 
 actions :: [Script]
@@ -43,7 +55,7 @@ actions =
     updateName name >> exit_ >> enter_
   , colonsEnd (not <$> isSelf) everyone ["m","cmd","update_icon"] $ \name ->
     updateIcon name >> update_
-  , colonsSep (not <$> isSelf) isOwner ["m","cmd","delete"] "all" $ void deleteAll
+  , colonsSep (not <$> isSelf) isOwner ["m","cmd","delete"] "all" deleteAll_
   , colonsEnd (not <$> isSelf) everyone ["m","cmd","delete"] $ \n ->
     case reads n of
       [(n',"")] -> delete_ n'
@@ -89,17 +101,20 @@ botId name roomId trip sId = do
           loop
     loop
 
-input :: String -> IO String
-input s = do
-  putStr s
-  hFlush stdout
-  t <- getLine
-  return t
+parseArgs :: [String] -> Maybe (Maybe String, Maybe String, Maybe String, Maybe String)
+parseArgs = go (Nothing,Nothing,Nothing,Nothing)
+  where
+    go acc [] = Just acc
+    go (_,r,t,s) ("-n":n:xs) = go (Just n,r,t,s) xs
+    go (n,_,t,s) ("-r":r:xs) = go (n,Just r,t,s) xs
+    go (n,r,_,s) ("-t":t:xs) = go (n,r,Just t,s) xs
+    go (n,r,t,_) ("-s":s:xs) = go (n,r,t,Just s) xs
+    go _ _ = Nothing
 
 main :: IO ()
 main = do
-  t <- input "trip: "
-  s <- input "session_id: "
-  if null s
-    then bot "λまろろろ" "petcwiki" t
-    else botId "λまろろろ" "petcwiki" t s
+  args <- parseArgs <$> getArgs
+  case args of
+    Just (Just n, Just r, mt, Just s) -> botId n r (maybe "" id mt) s
+    Just (Just n, Just r, mt, Nothing) -> bot n r (maybe "" id mt)
+    _ -> putStrLn "Usage: marokanibot -n <name> -r <roomid> [-t <trip>] [-s <sessionid>]"

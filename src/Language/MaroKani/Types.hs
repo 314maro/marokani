@@ -1,29 +1,29 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Language.MaroKani.Types
-( Env
-, EnvC
-, Output
-, appendOutput
-, Value(..)
-, isTrue
-, showType
-, intName
-, doubleName
-, stringName
-, boolName
-, arrayName
-, objectName
-, namespaceName
-, funName
-, primFunName
-, asyncName
-, mutableName
-, typeOr
-, Expr(..)
-, MaroKaniException(..)
-, showColor
-) where
+  ( Env
+  , EnvC
+  , Output
+  , appendOutput
+  , Value(..)
+  , isTrue
+  , showType
+  , intName
+  , doubleName
+  , stringName
+  , boolName
+  , arrayName
+  , objectName
+  , namespaceName
+  , funName
+  , primFunName
+  , asyncName
+  , mutableName
+  , typeOr
+  , Expr(..)
+  , MaroKaniException(..)
+  , showColor
+  ) where
 
 import Control.Monad.Trans
 import Control.Monad.Catch

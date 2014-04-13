@@ -1,16 +1,16 @@
 module Network.MaroKani.Internal
-( newId
-, enter
-, exit
-, say
-, soon
-, comet
-, delete
-, deleteAll
-, update
-, updateReq
-, closeKani
-) where
+  ( newId
+  , enter
+  , exit
+  , say
+  , soon
+  , comet
+  , delete
+  , deleteAll
+  , update
+  , updateReq
+  , closeKani
+  ) where
 
 import Network.MaroKani.Types
 

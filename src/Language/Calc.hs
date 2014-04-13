@@ -1,4 +1,6 @@
-module Language.Calc (run) where
+module Language.Calc
+  ( run
+  ) where
 
 import Control.Applicative
 import qualified Text.Trifecta as T

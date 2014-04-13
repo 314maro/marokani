@@ -1,6 +1,9 @@
 {-# LANGUAGE TupleSections #-}
 
-module Language.MaroKani.Eval (eval, eval') where
+module Language.MaroKani.Eval
+  ( eval
+  , eval'
+  ) where
 
 import Language.MaroKani.Types
 import Language.MaroKani.Prim

@@ -1,14 +1,14 @@
 module Network.MaroKani.Bot
-( mkReacts
-, Script
-, everyone
-, colonsEnd
-, colonsSep
-, nameIs
-, isSelf
-, isOwner
-, Condition
-) where
+  ( mkReacts
+  , Script
+  , everyone
+  , colonsEnd
+  , colonsSep
+  , nameIs
+  , isSelf
+  , isOwner
+  , Condition
+  ) where
 
 import Network.MaroKani
 

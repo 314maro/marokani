@@ -1,6 +1,11 @@
-module Language.MaroKani.Prim (newEnv, newEnv', std) where
+module Language.MaroKani.Prim
+  ( newEnv
+  , newEnv'
+  , std
+  ) where
 
 import Language.MaroKani.Types
+import Language.MaroKani.Utils
 
 import Paths_marokani
 
@@ -15,18 +20,6 @@ import qualified Data.Map as M
 import qualified Data.Vector as V
 import qualified System.Random as Rand
 foreign import ccall unsafe "math.h gamma" gamma :: Double -> Double
-
-mk1Arg :: (String -> Value -> IO Value) -> String -> (String,Value)
-mk1Arg f name = (name, PrimFun $ \_ _ v _ -> f name v)
-
-mk1Arg' :: (String -> ([Expr] -> IO Value) -> Value -> IO Value) -> String -> (String,Value)
-mk1Arg' f name = (name, PrimFun $ \_ ev v _ -> f name ev v)
-
-mk2Args :: (String -> Value -> Value -> IO Value) -> String -> (String,Value)
-mk2Args f name = (name, PrimFun $ \_ _ x _ -> return $ PrimFun $ \_ _ y _ -> f name x y)
-
-mk2Args' :: (String -> ([Expr] -> IO Value) -> Value -> Value -> IO Value) -> String -> (String,Value)
-mk2Args' f name = (name, PrimFun $ \_ _ x _ -> return $ PrimFun $ \_ ev y _ -> f name ev x y)
 
 calcNum :: (Integer -> Integer -> ti) -> (Double -> Double -> td)
   -> (ti -> a) -> (td -> a) -> Value -> Value -> String -> IO a

@@ -1,43 +1,44 @@
 module Network.MaroKani
-( KaniRequest(..)
-, defaultRequest
-, KaniResponse(..)
-, KaniLog(..)
-, Memdata(..)
-, KaniConfig(..)
-, defaultConfig
-, Proxy(..)
-, Kani
-, runKani
-, runKani'
-, kaniIO
-, asyncKani
-, updateName
-, updateIcon
-, newId
-, newId_
-, enter
-, enter_
-, exit
-, exit_
-, say
-, say_
-, soon
-, soon_
-, comet
-, comet_
-, delete
-, delete_
-, deleteAll
-, deleteAll_
-, update
-, update_
-) where
+  ( KaniRequest(..)
+  , defaultRequest
+  , KaniResponse(..)
+  , KaniLog(..)
+  , Memdata(..)
+  , KaniConfig(..)
+  , defaultConfig
+  , Proxy(..)
+  , Kani
+  , runKani
+  , runKani'
+  , kaniIO
+  , kaniIO1
+  , kaniIO2
+  , asyncKani
+  , updateName
+  , updateIcon
+  , newId
+  , newId_
+  , enter
+  , enter_
+  , exit
+  , exit_
+  , say
+  , say_
+  , soon
+  , soon_
+  , comet
+  , comet_
+  , delete
+  , delete_
+  , deleteAll
+  , deleteAll_
+  , update
+  , update_
+  ) where
 
 import Network.MaroKani.Types
 import qualified Network.MaroKani.Internal as K
 import Control.Monad.Reader
-import Control.Monad.Catch
 import Control.Concurrent.STM
 import Control.Concurrent.Async
 
@@ -126,3 +127,13 @@ kaniIO :: Kani a -> Kani (IO a)
 kaniIO act = do
   env <- ask
   return $ runReaderT act env
+
+kaniIO1 :: (r -> Kani a) -> Kani (r -> IO a)
+kaniIO1 act = do
+  env <- ask
+  return $ \r -> runReaderT (act r) env
+
+kaniIO2 :: (r -> s -> Kani a) -> Kani (r -> s -> IO a)
+kaniIO2 act = do
+  env <- ask
+  return $ \r s -> runReaderT (act r s) env
